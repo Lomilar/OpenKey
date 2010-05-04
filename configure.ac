@@ -63,6 +63,9 @@ AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h strin
 #endif
 ])
 
+dnl Check for PC/SC headers
+DC_PCSC_HEADERS
+
 dnl Upate LDFLAGS to include setting the run-time linker path to the same as our compile-time linker
 DC_SYNC_RPATH
 
