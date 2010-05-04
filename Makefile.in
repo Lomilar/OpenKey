@@ -1,0 +1,39 @@
+CC = @PTHREAD_CC@
+CFLAGS = @CFLAGS@ @PTHREAD_CFLAGS@
+DEBUGCFLAGS = @CFLAGS@ @PTHREAD_CFLAGS@
+CPPFLAGS = @CPPFLAGS@ @DEFS@ -I./pkcs11/
+DEBUGCPPFLAGS = @CPPFLAGS@ @DEFS@
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@ @PTHREAD_LIBS@
+SHOBJFLAGS = @SHOBJFLAGS@
+SHOBJLDFLAGS = @SHOBJLDFLAGS@
+AR = @AR@
+RANLIB = @RANLIB@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+libdir = @libdir@
+@SET_MAKE@
+
+all: cackey.@SHOBJEXT@
+
+cackey.o: cackey.c
+	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o cackey.o -c cackey.c
+
+cackey.@SHOBJEXT@: cackey.o
+	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o cackey.@SHOBJEXT@ cackey.o $(LIBS)
+
+install: cackey.@SHOBJEXT@
+	-mkdir "$(DESTDIR)$(libdir)"
+	cp cackey.@SHOBJEXT@ "$(DESTDIR)$(libdir)/"
+
+clean:
+	rm -f cackey.@SHOBJEXT@
+	rm -f cackey.o
+
+distclean: clean
+	rm -f config.log config.status config.h Makefile
+
+mrproper: distclean
+	rm -f configure config.h.in aclocal.m4 *~
+
+.PHONY: all clean distclean mrproper install
