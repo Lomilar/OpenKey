@@ -11,9 +11,19 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 			CPPFLAGS="${SAVE_CPPFLAGS} -I${headerdir}"
 
 			unset ac_cv_header_pcsclite_h
+			unset ac_cv_header_winscard_h
 
 			AC_CHECK_HEADER(pcsclite.h, [
 				AC_DEFINE(HAVE_PCSCLITE_H, [1], [Define if you have the PCSC-Lite header file (you should)])
+
+				ADD_CFLAGS=" -I${headerdir}"
+				ADD_CPPFLAGS=" -I${headerdir}"
+
+				break
+			])
+
+			AC_CHECK_HEADER(winscard.h, [
+				AC_DEFINE(HAVE_WINSCARD_H, [1], [Define if you have the PCSC-Lite header file (you should)])
 
 				ADD_CFLAGS=" -I${headerdir}"
 				ADD_CPPFLAGS=" -I${headerdir}"
@@ -29,4 +39,26 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 
 	CFLAGS="${SAVE_CFLAGS}${ADD_CFLAGS}"
 	CPPFLAGS="${SAVE_CPPFLAGS}${ADD_CPPFLAGS}"
+
+	unset ac_cv_header_winscard_h
+	AC_CHECK_HEADER(winscard.h, [
+		AC_DEFINE(HAVE_WINSCARD_H, [1], [Define if you have the PCSC-Lite header file (you should)])
+	])
+])
+
+AC_DEFUN(DC_PCSC_LIBS, [
+	for lib in pcsclite pcsc-lite pcsc; do
+		AC_CHECK_LIB(${lib}, SCardEstablishContext, [
+			LIBS="${LIBS} -l${lib}"
+
+			break
+		])
+	done
+
+	AC_CHECK_FUNCS(SCardIsValidContext)
+])
+
+AC_DEFUN(DC_PCSC, [
+	DC_PCSC_HEADERS
+	DC_PCSC_LIBS
 ])

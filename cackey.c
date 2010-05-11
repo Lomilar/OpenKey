@@ -5,6 +5,9 @@
 #ifdef HAVE_PCSCLITE_H
 #  include <pcsclite.h>
 #endif
+#ifdef HAVE_WINSCARD_H
+#  include <winscard.h>
+#endif
 #ifdef HAVE_STDINT_H
 #  include <stdint.h>
 #endif
@@ -131,11 +134,15 @@ struct cackey_session {
 	CK_ULONG decrypt_mech_parmlen;
 };
 
+/* CACKEY Global Handles */
 static void *cackey_biglock = NULL;
-static struct cackey_session cackey_sessions[8];
+static struct cackey_session cackey_sessions[128];
 static int cackey_initialized = 0;
 static int cackey_biglock_init = 0;
 CK_C_INITIALIZE_ARGS cackey_args;
+
+/* PCSC Global Handles */
+static LPSCARDCONTEXT cackey_pcsc_handle = NULL;
 
 static unsigned long cackey_getversion(void) {
 	static unsigned long retval = 255;
@@ -170,6 +177,56 @@ static unsigned long cackey_getversion(void) {
 	CACKEY_DEBUG_PRINTF("Returning 0x%lx", retval);
 
 	return(retval);
+}
+
+/* APDU Related Functions */
+static int cackey_send_apdu(unsigned char class, unsigned char instruction, unsigned char p1, unsigned char p2, unsigned char lc, unsigned char *data, unsigned char *resp, unsigned char resplen) {
+	LONG scard_est_context_ret;
+#ifdef HAVE_SCARDISVALIDCONTEXT
+	LONG scard_isvalid_ret;
+#endif
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (cackey_pcsc_handle == NULL) {
+		cackey_pcsc_handle = malloc(sizeof(*cackey_pcsc_handle));
+		if (cackey_pcsc_handle == NULL) {
+			CACKEY_DEBUG_PRINTF("Call to malloc() failed, returning in failure");
+
+			return(-1);
+		}
+
+		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, cackey_pcsc_handle);
+		if (scard_est_context_ret != SCARD_S_SUCCESS) {
+			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %li), returning in failure", (long) scard_est_context_ret);
+
+			free(cackey_pcsc_handle);
+
+			return(-1);
+		}
+	}
+
+#ifdef HAVE_SCARDISVALIDCONTEXT
+	scard_isvalid_ret = SCardIsValidContext(*cackey_pcsc_handle);
+	if (scard_isvalid_ret != SCARD_S_SUCCESS) {
+		CACKEY_DEBUG_PRINTF("Handle has become invalid, trying to re-establish...");
+
+		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, cackey_pcsc_handle);
+		if (scard_est_context_ret != SCARD_S_SUCCESS) {
+			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %li), returning in failure", (long) scard_est_context_ret);
+
+			free(cackey_pcsc_handle);
+
+			return(-1);
+		}
+
+		CACKEY_DEBUG_PRINTF("Handle has been re-established");
+	}
+#endif
+
+	/* Connect to a reader, if needed */
+
+	/* Transmit */
 }
 
 /* Returns 0 on success */
@@ -294,8 +351,7 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, void 
 	CK_KEY_TYPE ck_key_type;
 	CK_UTF8CHAR ucTmpBuf[1024];
 	unsigned char certificate[16384];
-	ssize_t getcert_ret, certificate_len = -1, x509_read_ret;
-	int fd;
+	ssize_t certificate_len = -1, x509_read_ret;
 	int pValue_free;
 
 	CACKEY_DEBUG_PRINTF("Called (objectClass = %lu, identity_num = %lu).", (unsigned long) objectclass, identity_num);
@@ -699,7 +755,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved) {
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetInfo)(CK_INFO_PTR pInfo) {
 	static CK_UTF8CHAR manufacturerID[] = "U.S. Government";
-	static CK_UTF8CHAR libraryDescription[] = "SSH Agent PKCS#11";
+	static CK_UTF8CHAR libraryDescription[] = "CACKey";
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -737,7 +793,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetInfo)(CK_INFO_PTR pInfo) {
 /* We only support 1 slot.  If the slot exists, the token exists. */
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount) {
 	CK_ULONG count, slot_present = 0, currslot;
-	int fd;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -785,7 +840,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo) {
 	static CK_UTF8CHAR manufacturerID[] = "U.S. Government";
-	static CK_UTF8CHAR slotDescription[] = "SSH Agent Slot";
+	static CK_UTF8CHAR slotDescription[] = "CACKey Slot";
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -830,8 +885,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo) {
 	static CK_UTF8CHAR manufacturerID[] = "U.S. Government";
 	static CK_UTF8CHAR defaultLabel[] = "Unknown Token";
-	static CK_UTF8CHAR model[] = "SSH Agent Token";
-	int fd, bytestocopy;
+	static CK_UTF8CHAR model[] = "CAC Token";
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -856,7 +910,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 
 	/* XXX: Verify connection is valid */
 	if (0) {
-		CACKEY_DEBUG_PRINTF("Error. Tried to connect to slot, but failed.  fd = %i", fd);
+		CACKEY_DEBUG_PRINTF("Error. Tried to connect to slot, but failed.");
 
 		return(CKR_SLOT_ID_INVALID);
 	}
@@ -1059,12 +1113,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetPIN)(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR 
 
 CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify, CK_SESSION_HANDLE_PTR phSession) {
 	struct cackey_identity *identities;
-	unsigned long idx, num_ids, id_idx, curr_id_type, curr_ssh_id_idx;
+	unsigned long idx, num_ids, id_idx, curr_id_type;
 	CK_BYTE sigbuf[1024];
 	ssize_t sigbuflen;
 	int mutex_retval;
 	int found_session = 0;
-	int fd;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -2128,7 +2181,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 	ssize_t buflen;
 	CK_RV retval = CKR_GENERAL_ERROR;
 	int mutex_retval;
-	int fd;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -2581,7 +2633,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 	CK_RV retval = CKR_GENERAL_ERROR;
 	int terminate_sign = 1;
 	int mutex_retval;
-	int fd;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
