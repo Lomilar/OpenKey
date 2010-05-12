@@ -341,6 +341,118 @@ static const char *CACKEY_DEBUG_FUNC_TAG_TO_STR(unsigned char tag) {
 	return(retval);
 }
 
+static const char *CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(LONG retcode) {
+	const char *retval = NULL;
+
+	switch (retcode) {
+		case SCARD_S_SUCCESS:
+			retval = "SCARD_S_SUCCESS";
+			break;
+		case SCARD_E_CANCELLED:
+			retval = "SCARD_E_CANCELLED";
+			break;
+		case SCARD_E_CANT_DISPOSE:
+			retval = "SCARD_E_CANT_DISPOSE";
+			break;
+		case SCARD_E_INSUFFICIENT_BUFFER:
+			retval = "SCARD_E_INSUFFICIENT_BUFFER";
+			break;
+		case SCARD_E_INVALID_ATR:
+			retval = "SCARD_E_INVALID_ATR";
+			break;
+		case SCARD_E_INVALID_HANDLE:
+			retval = "SCARD_E_INVALID_HANDLE";
+			break;
+		case SCARD_E_INVALID_PARAMETER:
+			retval = "SCARD_E_INVALID_PARAMETER";
+			break;
+		case SCARD_E_INVALID_TARGET:
+			retval = "SCARD_E_INVALID_TARGET";
+			break;
+		case SCARD_E_INVALID_VALUE:
+			retval = "SCARD_E_INVALID_VALUE";
+			break;
+		case SCARD_E_NO_MEMORY:
+			retval = "SCARD_E_NO_MEMORY";
+			break;
+		case SCARD_E_UNKNOWN_READER:
+			retval = "SCARD_E_UNKNOWN_READER";
+			break;
+		case SCARD_E_TIMEOUT:
+			retval = "SCARD_E_TIMEOUT";
+			break;
+		case SCARD_E_SHARING_VIOLATION:
+			retval = "SCARD_E_SHARING_VIOLATION";
+			break;
+		case SCARD_E_NO_SMARTCARD:
+			retval = "SCARD_E_NO_SMARTCARD";
+			break;
+		case SCARD_E_UNKNOWN_CARD:
+			retval = "SCARD_E_UNKNOWN_CARD";
+			break;
+		case SCARD_E_PROTO_MISMATCH:
+			retval = "SCARD_E_PROTO_MISMATCH";
+			break;
+		case SCARD_E_NOT_READY:
+			retval = "SCARD_E_NOT_READY";
+			break;
+		case SCARD_E_SYSTEM_CANCELLED:
+			retval = "SCARD_E_SYSTEM_CANCELLED";
+			break;
+		case SCARD_E_NOT_TRANSACTED:
+			retval = "SCARD_E_NOT_TRANSACTED";
+			break;
+		case SCARD_E_READER_UNAVAILABLE:
+			retval = "SCARD_E_READER_UNAVAILABLE";
+			break;
+		case SCARD_W_UNSUPPORTED_CARD:
+			retval = "SCARD_W_UNSUPPORTED_CARD";
+			break;
+		case SCARD_W_UNRESPONSIVE_CARD:
+			retval = "SCARD_W_UNRESPONSIVE_CARD";
+			break;
+		case SCARD_W_UNPOWERED_CARD:
+			retval = "SCARD_W_UNPOWERED_CARD";
+			break;
+		case SCARD_W_RESET_CARD:
+			retval = "SCARD_W_RESET_CARD";
+			break;
+		case SCARD_W_REMOVED_CARD:
+			retval = "SCARD_W_REMOVED_CARD";
+			break;
+		case SCARD_E_PCI_TOO_SMALL:
+			retval = "SCARD_E_PCI_TOO_SMALL";
+			break;
+		case SCARD_E_READER_UNSUPPORTED:
+			retval = "SCARD_E_READER_UNSUPPORTED";
+			break;
+		case SCARD_E_DUPLICATE_READER:
+			retval = "SCARD_E_DUPLICATE_READER";
+			break;
+		case SCARD_E_CARD_UNSUPPORTED:
+			retval = "SCARD_E_CARD_UNSUPPORTED";
+			break;
+		case SCARD_E_NO_SERVICE:
+			retval = "SCARD_E_NO_SERVICE";
+			break;
+		case SCARD_E_SERVICE_STOPPED:
+			retval = "SCARD_E_SERVICE_STOPPED";
+			break;
+		case SCARD_W_INSERTED_CARD:
+			retval = "SCARD_W_INSERTED_CARD";
+			break;
+		case SCARD_E_UNSUPPORTED_FEATURE:
+			retval = "SCARD_E_UNSUPPORTED_FEATURE";
+			break;
+	}
+
+	if (retval == NULL) {
+		retval = "UNKNOWN";
+	}
+
+	return(retval);
+}
+
 #  define malloc(x) CACKEY_DEBUG_FUNC_MALLOC(x, __func__)
 #  define realloc(x, y) CACKEY_DEBUG_FUNC_REALLOC(x, y, __func__)
 #else
@@ -348,6 +460,7 @@ static const char *CACKEY_DEBUG_FUNC_TAG_TO_STR(unsigned char tag) {
 #  define CACKEY_DEBUG_PRINTBUF(f, x, y) /**/
 #  define CACKEY_DEBUG_PERROR(x) /**/
 #  define CACKEY_DEBUG_FUNC_TAG_TO_STR(x) "DEBUG_DISABLED"
+#  define CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(x) "DEBUG_DISABLED"
 #endif
 
 struct cackey_identity {
@@ -396,10 +509,14 @@ struct cackey_slot {
 	SCARDHANDLE pcsc_card;
 };
 
+struct cackey_tlv_cardurl {
+};
+
 struct cackey_tlv_entity {
 	uint8_t tag;
 	size_t length;
 	unsigned char *value_buf; /* Raw buffer */
+	void *value;
 };
 
 /* CACKEY Global Handles */
@@ -490,7 +607,7 @@ static int cackey_pcsc_connect(void) {
 		CACKEY_DEBUG_PRINTF("SCardEstablishContext() called");
 		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, cackey_pcsc_handle);
 		if (scard_est_context_ret != SCARD_S_SUCCESS) {
-			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %li), returning in failure", (long) scard_est_context_ret);
+			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %s/%li), returning in failure", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_est_context_ret), (long) scard_est_context_ret);
 
 			free(cackey_pcsc_handle);
 
@@ -504,12 +621,12 @@ static int cackey_pcsc_connect(void) {
 	CACKEY_DEBUG_PRINTF("SCardIsValidContext() called");
 	scard_isvalid_ret = SCardIsValidContext(*cackey_pcsc_handle);
 	if (scard_isvalid_ret != SCARD_S_SUCCESS) {
-		CACKEY_DEBUG_PRINTF("Handle has become invalid (SCardIsValidContext = %li), trying to re-establish...", (long) scard_isvalid_ret);
+		CACKEY_DEBUG_PRINTF("Handle has become invalid (SCardIsValidContext = %s/%li), trying to re-establish...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_isvalid_ret), (long) scard_isvalid_ret);
 
 		CACKEY_DEBUG_PRINTF("SCardEstablishContext() called");
 		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, cackey_pcsc_handle);
 		if (scard_est_context_ret != SCARD_S_SUCCESS) {
-			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %li), returning in failure", (long) scard_est_context_ret);
+			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %s/%li), returning in failure", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_est_context_ret), (long) scard_est_context_ret);
 
 			free(cackey_pcsc_handle);
 
@@ -560,7 +677,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
 
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
-			CACKEY_DEBUG_PRINTF("Connection to card failed, returning in failure (SCardConnect() = %li)", (long) scard_conn_ret);
+			CACKEY_DEBUG_PRINTF("Connection to card failed, returning in failure (SCardConnect() = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_conn_ret), (long) scard_conn_ret);
 
 			return(-1);
 		}
@@ -590,7 +707,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 	recv_len = sizeof(recv_buf);
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
-		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %lx)", (unsigned long) scard_xmit_ret);
+		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
@@ -601,7 +718,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 				scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T0, recv_buf, &recv_len);
 
 				if (scard_xmit_ret != SCARD_S_SUCCESS) {
-					CACKEY_DEBUG_PRINTF("Retransmit failed, returning in failure after disconnecting the card");
+					CACKEY_DEBUG_PRINTF("Retransmit failed, returning in failure after disconnecting the card (SCardTransmit = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (long) scard_xmit_ret);
 
 					SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
 					slot->pcsc_card_connected = 0;
@@ -780,6 +897,28 @@ static int cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, si
 	return(0);
 }
 
+static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
+	unsigned char fid_buf[2];
+	int send_ret;
+
+	CACKEY_DEBUG_PRINTF("Called");
+
+	/* Open the elementary file */
+	fid_buf[0] = (ef >> 8) & 0xff;
+	fid_buf[1] = ef & 0xff;
+
+	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, 0x02, 0x0C, sizeof(fid_buf), fid_buf, 0x00, NULL, NULL, NULL);
+	if (send_ret < 0) {
+		CACKEY_DEBUG_PRINTF("Failed to open file, returning in failure");
+
+		return(-1);
+	}
+
+	CACKEY_DEBUG_PRINTF("Successfully selected file");
+
+	return(0);
+}
+
 static int cackey_read_tlv(struct cackey_slot *slot, int follow_url) {
 	struct cackey_tlv_entity curr_entity;
 	unsigned char tlen_buf[2], tval_buf[1024], *tval;
@@ -883,28 +1022,6 @@ static int cackey_read_tlv(struct cackey_slot *slot, int follow_url) {
 				break;
 		}
 	}
-
-	return(0);
-}
-
-static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
-	unsigned char fid_buf[2];
-	int send_ret;
-
-	CACKEY_DEBUG_PRINTF("Called");
-
-	/* Open the elementary file */
-	fid_buf[0] = (ef >> 8) & 0xff;
-	fid_buf[1] = ef & 0xff;
-
-	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, 0x02, 0x0C, sizeof(fid_buf), fid_buf, 0x00, NULL, NULL, NULL);
-	if (send_ret < 0) {
-		CACKEY_DEBUG_PRINTF("Failed to open file, returning in failure");
-
-		return(-1);
-	}
-
-	CACKEY_DEBUG_PRINTF("Successfully selected file");
 
 	return(0);
 }
@@ -1600,9 +1717,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 				if (currslot > 0) {
 					slot_count = currslot;
 				}
+			} else {
+				CACKEY_DEBUG_PRINTF("Second call to SCardListReaders failed, return %s/%li", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_listreaders_ret), (long) scard_listreaders_ret);
 			}
 
 			free(pcsc_readers_s);
+		} else {
+			CACKEY_DEBUG_PRINTF("First call to SCardListReaders failed, return %s/%li", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_listreaders_ret), (long) scard_listreaders_ret);
 		}
 	}
 
