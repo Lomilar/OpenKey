@@ -508,6 +508,12 @@ typedef enum {
 	CACKEY_TLV_OBJID_CAC_PKICERT       = 0x02FE
 } cackey_tlv_objectid;
 
+typedef enum {
+	CACKEY_LOGIN_OK     = 0,
+	CACKEY_LOGIN_BADPIN = -1,
+	CACKEY_LOGIN_LOCKED = -2
+} cackey_login_ret;
+
 struct cackey_tlv_cardurl {
 	unsigned char        rid[5];
 	cackey_tlv_apptype   apptype;
@@ -1263,6 +1269,39 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	}
 
 	return(certs);
+}
+
+static int cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned long pin_len, int *tries_remaining_p) {
+	uint16_t response_code;
+	int tries_remaining;
+	int send_ret;
+
+	/* Indicate that we do not know about how many tries are remaining */
+	if (tries_remaining_p) {
+		*tries_remaining_p = -1;
+	}
+
+	/* Issue PIN Verify */
+	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_VERIFY, 0x00, 0x00, pin_len, pin, 0x00, &response_code, NULL, NULL);
+	if (send_ret < 0) {
+		if ((response_code & 0x63C0) == 0x63C0) {
+			tries_remaining = (response_code & 0xF);
+
+			CACKEY_DEBUG_PRINTF("PIN Verification failed, %i tries remaining", tries_remaining);
+
+			if (tries_remaining_p) {
+				*tries_remaining_p = tries_remaining;
+			}
+		}
+
+		if (response_code == 0x6983) {
+			return(CACKEY_LOGIN_LOCKED);
+		} else {
+			return(CACKEY_LOGIN_BADPIN);
+		}
+	}
+
+	return(CACKEY_LOGIN_OK);
 }
 
 /* Returns 1 if a token is in the specified slot, 0 otherwise */
@@ -2116,7 +2155,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 	pInfo->firmwareVersion.major = 0x00;
 	pInfo->firmwareVersion.minor = 0x00;
 
-	pInfo->flags = CKF_WRITE_PROTECTED | CKF_USER_PIN_INITIALIZED | CKF_TOKEN_INITIALIZED;
+	pInfo->flags = CKF_WRITE_PROTECTED | CKF_USER_PIN_INITIALIZED | CKF_TOKEN_INITIALIZED | CKF_LOGIN_REQUIRED;
 
 	pInfo->ulMaxSessionCount = (sizeof(cackey_sessions) / sizeof(cackey_sessions[0])) - 1;
 	pInfo->ulSessionCount = CK_UNAVAILABLE_INFORMATION;
@@ -2289,10 +2328,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetPIN)(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR 
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify, CK_SESSION_HANDLE_PTR phSession) {
-	struct cackey_pcsc_identity *pcsc_identities;
-	struct cackey_identity *identities;
-	unsigned long idx, num_ids, id_idx, curr_id_type;
-	unsigned long num_certs, cert_idx;
+	unsigned long idx;
 	int mutex_retval;
 	int found_session = 0;
 
@@ -2350,32 +2386,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 
 			cackey_sessions[idx].identities = NULL;
 			cackey_sessions[idx].identities_count = 0;
-
-			pcsc_identities = cackey_read_certs(&cackey_slots[slotID], NULL, &num_certs);
-			if (pcsc_identities != NULL) {
-				/* Convert number of IDs to number of objects */
-				num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
-
-				identities = malloc(num_ids * sizeof(*identities));
-
-				id_idx = 0;
-				for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
-					for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
-						identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], -1, &identities[id_idx].attributes_count);
-
-						if (identities[id_idx].attributes == NULL) {
-							identities[id_idx].attributes_count = 0;
-						}
-
-						id_idx++;
-					}
-				}
-
-				cackey_sessions[idx].identities = identities;
-				cackey_sessions[idx].identities_count = num_ids;
-
-				cackey_free_certs(pcsc_identities, num_certs, 1);
-			}
 
 			cackey_sessions[idx].search_active = 0;
 
@@ -2610,6 +2620,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession, CK_BY
 
 CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen) {
 	int mutex_retval;
+	int login_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -2644,6 +2655,21 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 		CACKEY_DEBUG_PRINTF("Error.  Session not active.");
 		
 		return(CKR_SESSION_HANDLE_INVALID);
+	}
+
+	login_ret = cackey_login(&cackey_slots[cackey_sessions[hSession].slotID], pPin, ulPinLen, NULL);
+	if (login_ret != CACKEY_LOGIN_OK) {
+		cackey_mutex_unlock(cackey_biglock);
+
+		if (login_ret == CACKEY_LOGIN_LOCKED) {
+			CACKEY_DEBUG_PRINTF("Error.  Token is locked.");
+
+			return(CKR_PIN_LOCKED);
+		} else {
+			CACKEY_DEBUG_PRINTF("Error.  Invalid PIN.");
+
+			return(CKR_PIN_INCORRECT);
+		}
 	}
 
 	cackey_sessions[hSession].state = CKS_RO_USER_FUNCTIONS;
@@ -2898,6 +2924,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OB
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
+	struct cackey_pcsc_identity *pcsc_identities;
+	struct cackey_identity *identities;
+	unsigned long num_ids, id_idx, curr_id_type;
+	unsigned long num_certs, cert_idx;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -2935,6 +2965,34 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		CACKEY_DEBUG_PRINTF("Error.  Search already active.");
 		
 		return(CKR_OPERATION_ACTIVE);
+	}
+
+	if (cackey_sessions[hSession].identities == NULL) {
+		pcsc_identities = cackey_read_certs(&cackey_slots[cackey_sessions[hSession].slotID], NULL, &num_certs);
+		if (pcsc_identities != NULL) {
+			/* Convert number of Certs to number of objects */
+			num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
+
+			identities = malloc(num_ids * sizeof(*identities));
+
+			id_idx = 0;
+			for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
+				for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
+					identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], -1, &identities[id_idx].attributes_count);
+
+					if (identities[id_idx].attributes == NULL) {
+						identities[id_idx].attributes_count = 0;
+					}
+
+					id_idx++;
+				}
+			}
+
+			cackey_sessions[hSession].identities = identities;
+			cackey_sessions[hSession].identities_count = num_ids;
+
+			cackey_free_certs(pcsc_identities, num_certs, 1);
+		}
 	}
 
 	if (pTemplate != NULL) {
