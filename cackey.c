@@ -176,281 +176,237 @@ static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func)
 }
 
 static const char *CACKEY_DEBUG_FUNC_TAG_TO_STR(unsigned char tag) {
-	const char *retval = NULL;
-
 	switch (tag) {
 		case GSCIS_TAG_CARDID:
-			retval = "GSCIS_TAG_CARDID";
-			break;
+			return("GSCIS_TAG_CARDID");
 		case GSCIS_TAG_CCC_VER:
-			retval = "GSCIS_TAG_CCC_VER";
-			break;
+			return("GSCIS_TAG_CCC_VER");
 		case GSCIS_TAG_CCG_VER:
-			retval = "GSCIS_TAG_CCG_VER";
-			break;
+			return("GSCIS_TAG_CCG_VER");
 		case GSCIS_TAG_CARDURL:
-			retval = "GSCIS_TAG_CARDURL";
-			break;
+			return("GSCIS_TAG_CARDURL");
 		case GSCIS_TAG_PKCS15:
-			retval = "GSCIS_TAG_PKCS15";
-			break;
+			return("GSCIS_TAG_PKCS15");
 		case GSCIS_TAG_REG_DATA_MODEL:
-			retval = "GSCIS_TAG_REG_DATA_MODEL";
-			break;
+			return("GSCIS_TAG_REG_DATA_MODEL");
 		case GSCIS_TAG_ACR_TABLE:
-			retval = "GSCIS_TAG_ACR_TABLE";
-			break;
+			return("GSCIS_TAG_ACR_TABLE");
 		case GSCIS_TAG_CARD_APDU:
-			retval = "GSCIS_TAG_CARD_APDU";
-			break;
+			return("GSCIS_TAG_CARD_APDU");
 		case GSCIS_TAG_REDIRECTION:
-			retval = "GSCIS_TAG_REDIRECTION";
-			break;
+			return("GSCIS_TAG_REDIRECTION");
 		case GSCIS_TAG_CT:
-			retval = "GSCIS_TAG_CT";
-			break;
+			return("GSCIS_TAG_CT");
 		case GSCIS_TAG_ST:
-			retval = "GSCIS_TAG_ST";
-			break;
+			return("GSCIS_TAG_ST");
 		case GSCIS_TAG_NEXTCCC:
-			retval = "GSCIS_TAG_NEXTCCC";
-			break;
+			return("GSCIS_TAG_NEXTCCC");
 		case GSCIS_TAG_FNAME:
-			retval = "GSCIS_TAG_FNAME";
-			break;
+			return("GSCIS_TAG_FNAME");
 		case GSCIS_TAG_MNAME:
-			retval = "GSCIS_TAG_MNAME";
-			break;
+			return("GSCIS_TAG_MNAME");
 		case GSCIS_TAG_LNAME:
-			retval = "GSCIS_TAG_LNAME";
-			break;
+			return("GSCIS_TAG_LNAME");
 		case GSCIS_TAG_SUFFIX:
-			retval = "GSCIS_TAG_SUFFIX";
-			break;
+			return("GSCIS_TAG_SUFFIX");
 		case GSCIS_TAG_GOVT_AGENCY:
-			retval = "GSCIS_TAG_GOVT_AGENCY";
-			break;
+			return("GSCIS_TAG_GOVT_AGENCY");
 		case GSCIS_TAG_BUREAU:
-			retval = "GSCIS_TAG_BUREAU";
-			break;
+			return("GSCIS_TAG_BUREAU");
 		case GSCIS_TAG_BUREAU_CODE:
-			retval = "GSCIS_TAG_BUREAU_CODE";
-			break;
+			return("GSCIS_TAG_BUREAU_CODE");
 		case GSCIS_TAG_DEPT_CODE:
-			retval = "GSCIS_TAG_DEPT_CODE";
-			break;
+			return("GSCIS_TAG_DEPT_CODE");
 		case GSCIS_TAG_TITLE:
-			retval = "GSCIS_TAG_TITLE";
-			break;
+			return("GSCIS_TAG_TITLE");
 		case GSCIS_TAG_BUILDING:
-			retval = "GSCIS_TAG_BUILDING";
-			break;
+			return("GSCIS_TAG_BUILDING");
 		case GSCIS_TAG_OFFICE_ADDR1:
-			retval = "GSCIS_TAG_OFFICE_ADDR1";
-			break;
+			return("GSCIS_TAG_OFFICE_ADDR1");
 		case GSCIS_TAG_OFFICE_ADDR2:
-			retval = "GSCIS_TAG_OFFICE_ADDR2";
-			break;
+			return("GSCIS_TAG_OFFICE_ADDR2");
 		case GSCIS_TAG_OFFICE_CITY:
-			retval = "GSCIS_TAG_OFFICE_CITY";
-			break;
+			return("GSCIS_TAG_OFFICE_CITY");
 		case GSCIS_TAG_OFFICE_STATE:
-			retval = "GSCIS_TAG_OFFICE_STATE";
-			break;
+			return("GSCIS_TAG_OFFICE_STATE");
 		case GSCIS_TAG_OFFICE_ZIP:
-			retval = "GSCIS_TAG_OFFICE_ZIP";
-			break;
+			return("GSCIS_TAG_OFFICE_ZIP");
 		case GSCIS_TAG_OFFICE_COUNTRY:
-			retval = "GSCIS_TAG_OFFICE_COUNTRY";
-			break;
+			return("GSCIS_TAG_OFFICE_COUNTRY");
 		case GSCIS_TAG_OFFICE_PHONE:
-			retval = "GSCIS_TAG_OFFICE_PHONE";
-			break;
+			return("GSCIS_TAG_OFFICE_PHONE");
 		case GSCIS_TAG_OFFICE_PHONE_EXT:
-			retval = "GSCIS_TAG_OFFICE_PHONE_EXT";
-			break;
+			return("GSCIS_TAG_OFFICE_PHONE_EXT");
 		case GSCIS_TAG_OFFICE_FAX:
-			retval = "GSCIS_TAG_OFFICE_FAX";
-			break;
+			return("GSCIS_TAG_OFFICE_FAX");
 		case GSCIS_TAG_OFFICE_EMAIL:
-			retval = "GSCIS_TAG_OFFICE_EMAIL";
-			break;
+			return("GSCIS_TAG_OFFICE_EMAIL");
 		case GSCIS_TAG_OFFICE_ROOM:
-			retval = "GSCIS_TAG_OFFICE_ROOM";
-			break;
+			return("GSCIS_TAG_OFFICE_ROOM");
 		case GSCIS_TAG_NONGOV_AGENCY:
-			retval = "GSCIS_TAG_NONGOV_AGENCY";
-			break;
+			return("GSCIS_TAG_NONGOV_AGENCY");
 		case GSCIS_TAG_SSN_DESIGNATOR:
-			retval = "GSCIS_TAG_SSN_DESIGNATOR";
-			break;
+			return("GSCIS_TAG_SSN_DESIGNATOR");
 		case GSCIS_TAG_SSN:
-			retval = "GSCIS_TAG_SSN";
-			break;
+			return("GSCIS_TAG_SSN");
 		case GSCIS_TAG_DOB:
-			retval = "GSCIS_TAG_DOB";
-			break;
+			return("GSCIS_TAG_DOB");
 		case GSCIS_TAG_GENDER:
-			retval = "GSCIS_TAG_GENDER";
-			break;
+			return("GSCIS_TAG_GENDER");
 		case GSCIS_TAG_USERID:
-			retval = "GSCIS_TAG_USERID";
-			break;
+			return("GSCIS_TAG_USERID");
 		case GSCIS_TAG_DOMAIN:
-			retval = "GSCIS_TAG_DOMAIN";
-			break;
+			return("GSCIS_TAG_DOMAIN");
 		case GSCIS_TAG_PASSWORD:
-			retval = "GSCIS_TAG_PASSWORD";
-			break;
+			return("GSCIS_TAG_PASSWORD");
 		case GSCIS_TAG_ISSUERID:
-			retval = "GSCIS_TAG_ISSUERID";
-			break;
+			return("GSCIS_TAG_ISSUERID");
 		case GSCIS_TAG_SERNO:
-			retval = "GSCIS_TAG_SERNO";
-			break;
+			return("GSCIS_TAG_SERNO");
 		case GSCIS_TAG_ISSUE_DATE:
-			retval = "GSCIS_TAG_ISSUE_DATE";
-			break;
+			return("GSCIS_TAG_ISSUE_DATE");
 		case GSCIS_TAG_EXPIRE_DATE:
-			retval = "GSCIS_TAG_EXPIRE_DATE";
-			break;
+			return("GSCIS_TAG_EXPIRE_DATE");
 		case GSCIS_TAG_CARD_TYPE:
-			retval = "GSCIS_TAG_CARD_TYPE";
-			break;
+			return("GSCIS_TAG_CARD_TYPE");
 		case GSCIS_TAG_SECURITY_CODE:
-			retval = "GSCIS_TAG_SECURITY_CODE";
-			break;
+			return("GSCIS_TAG_SECURITY_CODE");
 		case GSCIS_TAG_CARDID_AID:
-			retval = "GSCIS_TAG_CARDID_AID";
-			break;
+			return("GSCIS_TAG_CARDID_AID");
 		case GSCIS_TAG_CERTIFICATE:
-			retval = "GSCIS_TAG_CERTIFICATE";
-			break;
+			return("GSCIS_TAG_CERTIFICATE");
 		case GSCIS_TAG_CERT_ISSUE_DATE:
-			retval = "GSCIS_TAG_CERT_ISSUE_DATE";
-			break;
+			return("GSCIS_TAG_CERT_ISSUE_DATE");
 		case GSCIS_TAG_CERT_EXPIRE_DATE:
-			retval = "GSCIS_TAG_CERT_EXPIRE_DATE";
-			break;
+			return("GSCIS_TAG_CERT_EXPIRE_DATE");
 	}
 
-	if (retval == NULL) {
-		retval = "UNKNOWN";
-	}
-
-	return(retval);
+	return("UNKNOWN");
 }
 
 static const char *CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(LONG retcode) {
-	const char *retval = NULL;
-
 	switch (retcode) {
 		case SCARD_S_SUCCESS:
-			retval = "SCARD_S_SUCCESS";
-			break;
+			return("SCARD_S_SUCCESS");
 		case SCARD_E_CANCELLED:
-			retval = "SCARD_E_CANCELLED";
-			break;
+			return("SCARD_E_CANCELLED");
 		case SCARD_E_CANT_DISPOSE:
-			retval = "SCARD_E_CANT_DISPOSE";
-			break;
+			return("SCARD_E_CANT_DISPOSE");
 		case SCARD_E_INSUFFICIENT_BUFFER:
-			retval = "SCARD_E_INSUFFICIENT_BUFFER";
-			break;
+			return("SCARD_E_INSUFFICIENT_BUFFER");
 		case SCARD_E_INVALID_ATR:
-			retval = "SCARD_E_INVALID_ATR";
-			break;
+			return("SCARD_E_INVALID_ATR");
 		case SCARD_E_INVALID_HANDLE:
-			retval = "SCARD_E_INVALID_HANDLE";
-			break;
+			return("SCARD_E_INVALID_HANDLE");
 		case SCARD_E_INVALID_PARAMETER:
-			retval = "SCARD_E_INVALID_PARAMETER";
-			break;
+			return("SCARD_E_INVALID_PARAMETER");
 		case SCARD_E_INVALID_TARGET:
-			retval = "SCARD_E_INVALID_TARGET";
-			break;
+			return("SCARD_E_INVALID_TARGET");
 		case SCARD_E_INVALID_VALUE:
-			retval = "SCARD_E_INVALID_VALUE";
-			break;
+			return("SCARD_E_INVALID_VALUE");
 		case SCARD_E_NO_MEMORY:
-			retval = "SCARD_E_NO_MEMORY";
-			break;
+			return("SCARD_E_NO_MEMORY");
 		case SCARD_E_UNKNOWN_READER:
-			retval = "SCARD_E_UNKNOWN_READER";
-			break;
+			return("SCARD_E_UNKNOWN_READER");
 		case SCARD_E_TIMEOUT:
-			retval = "SCARD_E_TIMEOUT";
-			break;
+			return("SCARD_E_TIMEOUT");
 		case SCARD_E_SHARING_VIOLATION:
-			retval = "SCARD_E_SHARING_VIOLATION";
-			break;
+			return("SCARD_E_SHARING_VIOLATION");
 		case SCARD_E_NO_SMARTCARD:
-			retval = "SCARD_E_NO_SMARTCARD";
-			break;
+			return("SCARD_E_NO_SMARTCARD");
 		case SCARD_E_UNKNOWN_CARD:
-			retval = "SCARD_E_UNKNOWN_CARD";
-			break;
+			return("SCARD_E_UNKNOWN_CARD");
 		case SCARD_E_PROTO_MISMATCH:
-			retval = "SCARD_E_PROTO_MISMATCH";
-			break;
+			return("SCARD_E_PROTO_MISMATCH");
 		case SCARD_E_NOT_READY:
-			retval = "SCARD_E_NOT_READY";
-			break;
+			return("SCARD_E_NOT_READY");
 		case SCARD_E_SYSTEM_CANCELLED:
-			retval = "SCARD_E_SYSTEM_CANCELLED";
-			break;
+			return("SCARD_E_SYSTEM_CANCELLED");
 		case SCARD_E_NOT_TRANSACTED:
-			retval = "SCARD_E_NOT_TRANSACTED";
-			break;
+			return("SCARD_E_NOT_TRANSACTED");
 		case SCARD_E_READER_UNAVAILABLE:
-			retval = "SCARD_E_READER_UNAVAILABLE";
-			break;
+			return("SCARD_E_READER_UNAVAILABLE");
 		case SCARD_W_UNSUPPORTED_CARD:
-			retval = "SCARD_W_UNSUPPORTED_CARD";
-			break;
+			return("SCARD_W_UNSUPPORTED_CARD");
 		case SCARD_W_UNRESPONSIVE_CARD:
-			retval = "SCARD_W_UNRESPONSIVE_CARD";
-			break;
+			return("SCARD_W_UNRESPONSIVE_CARD");
 		case SCARD_W_UNPOWERED_CARD:
-			retval = "SCARD_W_UNPOWERED_CARD";
-			break;
+			return("SCARD_W_UNPOWERED_CARD");
 		case SCARD_W_RESET_CARD:
-			retval = "SCARD_W_RESET_CARD";
-			break;
+			return("SCARD_W_RESET_CARD");
 		case SCARD_W_REMOVED_CARD:
-			retval = "SCARD_W_REMOVED_CARD";
-			break;
+			return("SCARD_W_REMOVED_CARD");
 		case SCARD_E_PCI_TOO_SMALL:
-			retval = "SCARD_E_PCI_TOO_SMALL";
-			break;
+			return("SCARD_E_PCI_TOO_SMALL");
 		case SCARD_E_READER_UNSUPPORTED:
-			retval = "SCARD_E_READER_UNSUPPORTED";
-			break;
+			return("SCARD_E_READER_UNSUPPORTED");
 		case SCARD_E_DUPLICATE_READER:
-			retval = "SCARD_E_DUPLICATE_READER";
-			break;
+			return("SCARD_E_DUPLICATE_READER");
 		case SCARD_E_CARD_UNSUPPORTED:
-			retval = "SCARD_E_CARD_UNSUPPORTED";
-			break;
+			return("SCARD_E_CARD_UNSUPPORTED");
 		case SCARD_E_NO_SERVICE:
-			retval = "SCARD_E_NO_SERVICE";
-			break;
+			return("SCARD_E_NO_SERVICE");
 		case SCARD_E_SERVICE_STOPPED:
-			retval = "SCARD_E_SERVICE_STOPPED";
-			break;
+			return("SCARD_E_SERVICE_STOPPED");
 		case SCARD_W_INSERTED_CARD:
-			retval = "SCARD_W_INSERTED_CARD";
-			break;
+			return("SCARD_W_INSERTED_CARD");
 		case SCARD_E_UNSUPPORTED_FEATURE:
-			retval = "SCARD_E_UNSUPPORTED_FEATURE";
-			break;
+			return("SCARD_E_UNSUPPORTED_FEATURE");
 	}
 
-	if (retval == NULL) {
-		retval = "UNKNOWN";
+	return("UNKNOWN");
+}
+
+static const char *CACKEY_DEBUG_FUNC_OBJID_TO_STR(uint16_t objid) {
+	switch (objid) {
+		case 0x2000:
+			return("CACKEY_TLV_OBJID_GENERALINFO");
+		case 0x2100:
+			return("CACKEY_TLV_OBJID_PROPERSONALINFO");
+		case 0x3000:
+			return("CACKEY_TLV_OBJID_ACCESSCONTROL");
+		case 0x4000:
+			return("CACKEY_TLV_OBJID_LOGIN");
+		case 0x5000:
+			return("CACKEY_TLV_OBJID_CARDINFO");
+		case 0x6000:
+			return("CACKEY_TLV_OBJID_BIOMETRICS");
+		case 0x7000:
+			return("CACKEY_TLV_OBJID_DIGITALSIGCERT");
+		case 0x0200:
+			return("CACKEY_TLV_OBJID_CAC_PERSON");
+		case 0x0202:
+			return("CACKEY_TLV_OBJID_CAC_BENEFITS");
+		case 0x0203:
+			return("CACKEY_TLV_OBJID_CAC_OTHERBENEFITS");
+		case 0x0201:
+			return("CACKEY_TLV_OBJID_CAC_PERSONNEL");
+		case 0x02FE:
+			return("CACKEY_TLV_OBJID_CAC_PKICERT");
+	}
+	
+	return("UNKNOWN");
+}
+
+static const char *CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(uint8_t apptype) {
+	switch (apptype) {
+		case 0x01:
+			return("CACKEY_TLV_APP_GENERIC");
+		case 0x02:
+			return("CACKEY_TLV_APP_SKI");
+		case 0x03:
+			return("CACKEY_TLV_APP_GENERIC | CACKEY_TLV_APP_SKI");
+		case 0x04:
+			return("CACKEY_TLV_APP_PKI");
+		case 0x05:
+			return("CACKEY_TLV_APP_GENERIC | CACKEY_TLV_APP_PKI");
+		case 0x06:
+			return("CACKEY_TLV_APP_SKI | CACKEY_TLV_APP_PKI");
+		case 0x07:
+			return("CACKEY_TLV_APP_GENERIC | CACKEY_TLV_APP_SKI | CACKEY_TLV_APP_PKI");
 	}
 
-	return(retval);
+	return("INVALID");
 }
 
 #  define malloc(x) CACKEY_DEBUG_FUNC_MALLOC(x, __func__)
@@ -461,6 +417,8 @@ static const char *CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(LONG retcode) {
 #  define CACKEY_DEBUG_PERROR(x) /**/
 #  define CACKEY_DEBUG_FUNC_TAG_TO_STR(x) "DEBUG_DISABLED"
 #  define CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(x) "DEBUG_DISABLED"
+#  define CACKEY_DEBUG_FUNC_OBJID_TO_STR(x) "DEBUG_DISABLED"
+#  define CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(x) "DEBUG_DISABLED"
 #endif
 
 struct cackey_identity {
@@ -509,14 +467,47 @@ struct cackey_slot {
 	SCARDHANDLE pcsc_card;
 };
 
+typedef enum {
+	CACKEY_TLV_APP_GENERIC = 0x01,
+	CACKEY_TLV_APP_SKI     = 0x02,
+	CACKEY_TLV_APP_PKI     = 0x04
+} cackey_tlv_apptype;
+
+typedef enum {
+	CACKEY_TLV_OBJID_GENERALINFO       = 0x2000,
+	CACKEY_TLV_OBJID_PROPERSONALINFO   = 0x2100,
+	CACKEY_TLV_OBJID_ACCESSCONTROL     = 0x3000,
+	CACKEY_TLV_OBJID_LOGIN             = 0x4000,
+	CACKEY_TLV_OBJID_CARDINFO          = 0x5000,
+	CACKEY_TLV_OBJID_BIOMETRICS        = 0x6000,
+	CACKEY_TLV_OBJID_DIGITALSIGCERT    = 0x7000,
+	CACKEY_TLV_OBJID_CAC_PERSON        = 0x0200,
+	CACKEY_TLV_OBJID_CAC_BENEFITS      = 0x0202,
+	CACKEY_TLV_OBJID_CAC_OTHERBENEFITS = 0x0203,
+	CACKEY_TLV_OBJID_CAC_PERSONNEL     = 0x0201,
+	CACKEY_TLV_OBJID_CAC_PKICERT       = 0x02FE
+} cackey_tlv_objectid;
+
 struct cackey_tlv_cardurl {
+	unsigned char        rid[5];
+	cackey_tlv_apptype   apptype;
+	cackey_tlv_objectid  objectid;
+	cackey_tlv_objectid  appid;
+	unsigned char        pinid;
 };
 
+struct cackey_tlv_entity;
 struct cackey_tlv_entity {
 	uint8_t tag;
 	size_t length;
-	unsigned char *value_buf; /* Raw buffer */
-	void *value;
+
+	union {
+		void *value;
+		struct cackey_tlv_cardurl *value_cardurl;
+		uint8_t value_byte;
+	};
+
+	struct cackey_tlv_entity *_next;
 };
 
 /* CACKEY Global Handles */
@@ -919,14 +910,41 @@ static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 	return(0);
 }
 
-static int cackey_read_tlv(struct cackey_slot *slot, int follow_url) {
-	struct cackey_tlv_entity curr_entity;
+static void cackey_free_tlv(struct cackey_tlv_entity *root) {
+	struct cackey_tlv_entity *curr, *next;
+
+	for (curr = root; curr; curr = next) {
+		next = curr->_next;
+
+		switch (curr->tag) {
+			case GSCIS_TAG_ACR_TABLE:
+				if (curr->value) {
+					free(curr->value);
+				}
+				break;
+			case GSCIS_TAG_CARDURL:
+				if (curr->value_cardurl) {
+					free(curr->value_cardurl);
+				}
+				break;
+		}
+
+		free(curr);
+	}
+
+	return;
+}
+
+static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
+	struct cackey_tlv_entity *curr_entity, *root = NULL, *last = NULL;
 	unsigned char tlen_buf[2], tval_buf[1024], *tval;
 	unsigned char vlen_buf[2], vval_buf[8192], *vval;
+	unsigned char *tmpbuf;
 	ssize_t tlen, vlen;
 	ssize_t read_ret;
 	size_t offset_t = 0, offset_v = 0;
-	int select_ret;
+	unsigned char tag;
+	size_t length;
 
 	CACKEY_DEBUG_PRINTF("Called");
 
@@ -934,7 +952,7 @@ static int cackey_read_tlv(struct cackey_slot *slot, int follow_url) {
 	if (read_ret != sizeof(tlen_buf)) {
 		CACKEY_DEBUG_PRINTF("Read failed, returning in failure");
 
-		return(0);
+		return(NULL);
 	}
 
 	tlen = (tlen_buf[1] << 8) | tlen_buf[0];
@@ -943,7 +961,7 @@ static int cackey_read_tlv(struct cackey_slot *slot, int follow_url) {
 	if (read_ret != sizeof(vlen_buf)) {
 		CACKEY_DEBUG_PRINTF("Read failed, returning in failure");
 
-		return(0);
+		return(NULL);
 	}
 
 	vlen = (vlen_buf[1] << 8) | vlen_buf[0];
@@ -959,76 +977,109 @@ static int cackey_read_tlv(struct cackey_slot *slot, int follow_url) {
 	if (tlen > sizeof(tval_buf)) {
 		CACKEY_DEBUG_PRINTF("Tag length is too large, returning in failure");
 
-		return(0);
+		return(NULL);
 	}
 
 	if (vlen > sizeof(vval_buf)) {
 		CACKEY_DEBUG_PRINTF("Value length is too large, returning in failure");
 
-		return(0);
+		return(NULL);
 	}
 
 	read_ret = cackey_read_buffer(slot, tval_buf, tlen, 1, offset_t);
 	if (read_ret != tlen) {
 		CACKEY_DEBUG_PRINTF("Unable to read entire T-buffer, returning in failure");
 
-		return(0);
+		return(NULL);
 	}
 
 	read_ret = cackey_read_buffer(slot, vval_buf, vlen, 2, offset_v);
 	if (read_ret != vlen) {
 		CACKEY_DEBUG_PRINTF("Unable to read entire V-buffer, returning in failure");
 
-		return(0);
+		return(NULL);
 	}
 
 	tval = tval_buf;
 	vval = vval_buf;
 	while (tlen > 0 && vlen > 0) {
-		curr_entity.tag = *tval;
+		tag = *tval;
 		tval++;
 		tlen--;
 
 		if (*tval == 0xff) {
-			curr_entity.length = (tval[2] << 8) | tval[1];
+			length = (tval[2] << 8) | tval[1];
 			tval += 3;
 			tlen -= 3;
 		} else {
-			curr_entity.length = *tval;
+			length = *tval;
 			tval++;
 			tlen--;
 		}
 
-		CACKEY_DEBUG_PRINTF("Tag: %s (%02x)", CACKEY_DEBUG_FUNC_TAG_TO_STR(curr_entity.tag), (unsigned int) curr_entity.tag);
-		CACKEY_DEBUG_PRINTBUF("Value:", vval, curr_entity.length);
-		vval += curr_entity.length;
-		vlen -= curr_entity.length;
+		CACKEY_DEBUG_PRINTF("Tag: %s (%02x)", CACKEY_DEBUG_FUNC_TAG_TO_STR(tag), (unsigned int) tag);
+		CACKEY_DEBUG_PRINTBUF("Value:", vval, length);
+		vval += length;
+		vlen -= length;
 
-		switch (curr_entity.tag) {
+		curr_entity = NULL;
+		switch (tag) {
 			case GSCIS_TAG_CARDURL:
-				if (follow_url) {
-					unsigned char aid[7];
-					memcpy(aid, vval, 5);
-					memcpy(aid + 5, vval + 8, 2);
+				curr_entity = malloc(sizeof(*curr_entity));
+				curr_entity->value_cardurl = malloc(sizeof(*curr_entity->value_cardurl));
 
-					select_ret = cackey_select_applet(slot, aid, 7);
-					if (select_ret < 0) {
-						CACKEY_DEBUG_PRINTF("Failed to select applet");
-						break;
-					}
+				memcpy(curr_entity->value_cardurl->rid, vval, 5);
+				curr_entity->value_cardurl->apptype = vval[5];
+				curr_entity->value_cardurl->objectid = (vval[6] << 8) | vval[7];
+				curr_entity->value_cardurl->appid = (vval[8] << 8) | vval[9];
 
-					cackey_read_tlv(slot, 0);
-				}
+				curr_entity->tag = tag;
+				curr_entity->_next = NULL;
+
 				break;
+			case GSCIS_TAG_ACR_TABLE:
+				curr_entity = malloc(sizeof(*curr_entity));
+				tmpbuf = malloc(length);
+
+				memcpy(tmpbuf, vval, length);
+
+				curr_entity->tag = tag;
+				curr_entity->length = length;
+				curr_entity->value = tmpbuf;
+				curr_entity->_next = NULL;
+
+				break;
+			case GSCIS_TAG_PKCS15:
+				curr_entity = malloc(sizeof(*curr_entity));
+
+				curr_entity->tag = tag;
+				curr_entity->value_byte = vval[0];
+				curr_entity->_next = NULL;
+
+				break;
+		}
+
+		if (curr_entity != NULL) {
+			if (root == NULL) {
+				root = curr_entity;
+			}
+
+			if (last != NULL) {
+				last->_next = curr_entity;
+			}
+
+			last = curr_entity;
 		}
 	}
 
-	return(0);
+	return(root);
 }
 
 /* Returns 1 if a token is in the specified slot, 0 otherwise */
 static int cackey_token_present(struct cackey_slot *slot) {
+	struct cackey_tlv_entity *tlvs, *curr;
 	unsigned char ccc_aid[] = {0xa0, 0x00, 0x00, 0x01, 0x16, 0xdb, 0x00};
+	unsigned char curr_aid[7];
 	int send_ret;
 
 	/* Select the CCC Applet */
@@ -1037,7 +1088,29 @@ static int cackey_token_present(struct cackey_slot *slot) {
 		return(0);
 	}
 
-	cackey_read_tlv(slot, 1);
+	tlvs = cackey_read_tlv(slot);
+
+	for (curr = tlvs; curr; curr = curr->_next) {
+		CACKEY_DEBUG_PRINTF("Found tag: %s", CACKEY_DEBUG_FUNC_TAG_TO_STR(curr->tag));
+		switch (curr->tag) {
+			case GSCIS_TAG_CARDURL:
+				if ((curr->value_cardurl->apptype & CACKEY_TLV_APP_PKI) == CACKEY_TLV_APP_PKI) {
+					CACKEY_DEBUG_PRINTBUF("RID:", curr->value_cardurl->rid, sizeof(curr->value_cardurl->rid));
+					CACKEY_DEBUG_PRINTF("AppID = %s/%04lx", CACKEY_DEBUG_FUNC_OBJID_TO_STR(curr->value_cardurl->appid), (unsigned long) curr->value_cardurl->appid);
+					CACKEY_DEBUG_PRINTF("ObjectID = %s/%04lx", CACKEY_DEBUG_FUNC_OBJID_TO_STR(curr->value_cardurl->objectid), (unsigned long) curr->value_cardurl->objectid);
+
+					memcpy(curr_aid, curr->value_cardurl->rid, sizeof(curr->value_cardurl->rid));
+					curr_aid[sizeof(curr_aid) - 2] = (curr->value_cardurl->appid >> 8) & 0xff;
+					curr_aid[sizeof(curr_aid) - 1] = curr->value_cardurl->appid & 0xff;
+
+					cackey_select_applet(slot, curr_aid, sizeof(curr_aid));
+					cackey_select_file(slot, curr->value_cardurl->objectid);
+				}
+				break;
+		}
+	}
+
+	cackey_free_tlv(tlvs);
 
 	return(1);
 }
