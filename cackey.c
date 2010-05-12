@@ -57,9 +57,11 @@
 #endif
 
 /* GSC-IS v2.1 Definitions */
+/** Classes **/
 #define GSCIS_CLASS_ISO7816           0x00
 #define GSCIS_CLASS_GLOBAL_PLATFORM   0x80
 
+/** Instructions **/
 #define GSCIS_INSTR_GET_RESPONSE      0xC0
 #define GSCIS_INSTR_READ_BINARY       0xB0
 #define GSCIS_INSTR_UPDATE_BINARY     0xD6
@@ -76,7 +78,8 @@
 
 #define GSCIS_PARAM_SELECT_APPLET     0x04
 
-/* CCC */
+/** Tags **/
+/*** CCC Tags ***/
 #define GSCIS_TAG_CARDID              0xF0
 #define GSCIS_TAG_CCC_VER             0xF1
 #define GSCIS_TAG_CCG_VER             0xF2
@@ -90,7 +93,7 @@
 #define GSCIS_TAG_ST                  0xFC
 #define GSCIS_TAG_NEXTCCC             0xFD
 
-/* General - EF 2200 */
+/*** General - EF 2200 ***/
 #define GSCIS_TAG_FNAME               0x01
 #define GSCIS_TAG_MNAME               0x02
 #define GSCIS_TAG_LNAME               0x03
@@ -115,17 +118,17 @@
 #define GSCIS_TAG_NONGOV_AGENCY       0x1C
 #define GSCIS_TAG_SSN_DESIGNATOR      0x1D
 
-/* PII - EF 2100 */
+/*** PII - EF 2100 ***/
 #define GSCIS_TAG_SSN                 0x20
 #define GSCIS_TAG_DOB                 0x21
 #define GSCIS_TAG_GENDER              0x22
 
-/* Login Information - EF 4000 */
+/*** Login Information - EF 4000 ***/
 #define GSCIS_TAG_USERID              0x40
 #define GSCIS_TAG_DOMAIN              0x41
 #define GSCIS_TAG_PASSWORD            0x42
 
-/* Card Information - EF 5000 */
+/*** Card Information - EF 5000 ***/
 #define GSCIS_TAG_ISSUERID            0x50
 #define GSCIS_TAG_SERNO               0x51
 #define GSCIS_TAG_ISSUE_DATE          0x52
@@ -134,10 +137,13 @@
 #define GSCIS_TAG_SECURITY_CODE       0x57
 #define GSCIS_TAG_CARDID_AID          0x58
 
-/* PKI Information - EF 7000 */
+/*** PKI Information - EF 7000 ***/
 #define GSCIS_TAG_CERTIFICATE         0x70
 #define GSCIS_TAG_CERT_ISSUE_DATE     0x71
 #define GSCIS_TAG_CERT_EXPIRE_DATE    0x72
+
+/** Applet IDs **/
+#define GSCIS_AID_CCC                 0xA0, 0x00, 0x00, 0x01, 0x16, 0xDB, 0x00
 
 #ifdef CACKEY_DEBUG
 #  ifdef HAVE_STDIO_H
@@ -390,6 +396,8 @@ static const char *CACKEY_DEBUG_FUNC_OBJID_TO_STR(uint16_t objid) {
 
 static const char *CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(uint8_t apptype) {
 	switch (apptype) {
+		case 0x00:
+			return("NONE");
 		case 0x01:
 			return("CACKEY_TLV_APP_GENERIC");
 		case 0x02:
@@ -421,7 +429,19 @@ static const char *CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(uint8_t apptype) {
 #  define CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(x) "DEBUG_DISABLED"
 #endif
 
+struct cackey_pcsc_identity {
+	unsigned char applet[7];
+	uint16_t file;
+
+	unsigned char *label;
+
+	size_t certificate_len;
+	unsigned char *certificate;
+};
+
 struct cackey_identity {
+	struct cackey_pcsc_identity *identity;
+
 	CK_ATTRIBUTE *attributes;
 	CK_ULONG attributes_count;
 };
@@ -817,10 +837,10 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 	uint16_t respcode;
 	int send_ret;
 
-	CACKEY_DEBUG_PRINTF("Called");
+	CACKEY_DEBUG_PRINTF("Called.");
 
 	max_offset = count;
-	max_count = 64;
+	max_count = 252;
 
 	cmd[0] = t_or_v;
 
@@ -872,7 +892,7 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 static int cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, size_t aid_len) {
 	int send_ret;
 
-	CACKEY_DEBUG_PRINTF("Called");
+	CACKEY_DEBUG_PRINTF("Called.");
 
 	CACKEY_DEBUG_PRINTBUF("Selecting applet:", aid, aid_len);
 
@@ -892,11 +912,13 @@ static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 	unsigned char fid_buf[2];
 	int send_ret;
 
-	CACKEY_DEBUG_PRINTF("Called");
+	CACKEY_DEBUG_PRINTF("Called.");
 
 	/* Open the elementary file */
 	fid_buf[0] = (ef >> 8) & 0xff;
 	fid_buf[1] = ef & 0xff;
+
+	CACKEY_DEBUG_PRINTF("Selecting file: %04lx", (unsigned long) ef);
 
 	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, 0x02, 0x0C, sizeof(fid_buf), fid_buf, 0x00, NULL, NULL, NULL);
 	if (send_ret < 0) {
@@ -913,11 +935,16 @@ static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 static void cackey_free_tlv(struct cackey_tlv_entity *root) {
 	struct cackey_tlv_entity *curr, *next;
 
+	if (root == NULL) {
+		return;
+	}
+
 	for (curr = root; curr; curr = next) {
 		next = curr->_next;
 
 		switch (curr->tag) {
 			case GSCIS_TAG_ACR_TABLE:
+			case GSCIS_TAG_CERTIFICATE:
 				if (curr->value) {
 					free(curr->value);
 				}
@@ -946,7 +973,7 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	unsigned char tag;
 	size_t length;
 
-	CACKEY_DEBUG_PRINTF("Called");
+	CACKEY_DEBUG_PRINTF("Called.");
 
 	read_ret = cackey_read_buffer(slot, tlen_buf, sizeof(tlen_buf), 1, offset_t);
 	if (read_ret != sizeof(tlen_buf)) {
@@ -1049,6 +1076,18 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 				curr_entity->_next = NULL;
 
 				break;
+			case GSCIS_TAG_CERTIFICATE:
+				curr_entity = malloc(sizeof(*curr_entity));
+				tmpbuf = malloc(length);
+
+				memcpy(tmpbuf, vval, length);
+
+				curr_entity->tag = tag;
+				curr_entity->length = length;
+				curr_entity->value = tmpbuf;
+				curr_entity->_next = NULL;
+
+				break;
 			case GSCIS_TAG_PKCS15:
 				curr_entity = malloc(sizeof(*curr_entity));
 
@@ -1075,11 +1114,160 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	return(root);
 }
 
+static void cackey_free_certs(struct cackey_pcsc_identity *start, size_t count, int free_start) {
+	size_t idx;
+
+	for (idx = 0; idx < count; idx++) {
+		if (start[idx].certificate) {
+			free(start[idx].certificate);
+		}
+	}
+
+	if (free_start) {
+		free(start);
+	}
+
+	return;
+}
+
+static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, struct cackey_pcsc_identity *certs, unsigned long *count) {
+	struct cackey_pcsc_identity *curr_id;
+	struct cackey_tlv_entity *ccc_tlv, *ccc_curr, *app_tlv, *app_curr;
+	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
+	unsigned char curr_aid[7];
+	unsigned long outidx = 0;
+	int certs_resizable;
+	int send_ret, select_ret;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (count == NULL) {
+		CACKEY_DEBUG_PRINTF("count is NULL, returning in failure");
+
+		return(NULL);
+	}
+
+	if (*count == 0) {
+		if (certs != NULL) {
+			CACKEY_DEBUG_PRINTF("Requested we return 0 objects, short-circuit");
+
+			return(certs);
+		}
+	}
+
+	if (certs == NULL) {
+		certs = malloc(sizeof(*certs) * 5);
+		*count = 5;
+		certs_resizable = 1;
+	} else {
+		certs_resizable = 0;
+	}
+
+	/* Select the CCC Applet */
+	send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
+	if (send_ret < 0) {
+		CACKEY_DEBUG_PRINTF("Unable to select CCC Applet, returning in failure");
+
+		return(NULL);
+	}
+
+	/* Read all the applets from the CCC's TLV */
+	ccc_tlv = cackey_read_tlv(slot);
+
+	/* Look for CARDURLs that coorespond to PKI applets */
+	for (ccc_curr = ccc_tlv; ccc_curr; ccc_curr = ccc_curr->_next) {
+		CACKEY_DEBUG_PRINTF("Found tag: %s ... ", CACKEY_DEBUG_FUNC_TAG_TO_STR(ccc_curr->tag));
+
+		if (ccc_curr->tag != GSCIS_TAG_CARDURL) {
+			CACKEY_DEBUG_PRINTF("  ... skipping it (we only care about CARDURLs)");
+
+			continue;
+		}
+
+		if ((ccc_curr->value_cardurl->apptype & CACKEY_TLV_APP_PKI) != CACKEY_TLV_APP_PKI) {
+			CACKEY_DEBUG_PRINTF("  ... skipping it (we only care about PKI applets, this applet supports: %s/%02x)", CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(ccc_curr->value_cardurl->apptype), (unsigned int) ccc_curr->value_cardurl->apptype);
+
+			continue;
+		}
+
+		CACKEY_DEBUG_PRINTBUF("RID:", ccc_curr->value_cardurl->rid, sizeof(ccc_curr->value_cardurl->rid));
+		CACKEY_DEBUG_PRINTF("AppID = %s/%04lx", CACKEY_DEBUG_FUNC_OBJID_TO_STR(ccc_curr->value_cardurl->appid), (unsigned long) ccc_curr->value_cardurl->appid);
+		CACKEY_DEBUG_PRINTF("ObjectID = %s/%04lx", CACKEY_DEBUG_FUNC_OBJID_TO_STR(ccc_curr->value_cardurl->objectid), (unsigned long) ccc_curr->value_cardurl->objectid);
+
+		memcpy(curr_aid, ccc_curr->value_cardurl->rid, sizeof(ccc_curr->value_cardurl->rid));
+		curr_aid[sizeof(curr_aid) - 2] = (ccc_curr->value_cardurl->appid >> 8) & 0xff;
+		curr_aid[sizeof(curr_aid) - 1] = ccc_curr->value_cardurl->appid & 0xff;
+
+		/* Select found applet ... */
+		select_ret = cackey_select_applet(slot, curr_aid, sizeof(curr_aid));
+		if (select_ret < 0) {
+			CACKEY_DEBUG_PRINTF("Failed to select applet, skipping processing of this object");
+
+			continue;
+		}
+
+		/* ... and object (file) */
+		select_ret = cackey_select_file(slot, ccc_curr->value_cardurl->objectid);
+		if (select_ret < 0) {
+			CACKEY_DEBUG_PRINTF("Failed to select file, skipping processing of this object");
+
+			continue;
+		}
+
+		/* Process this file's TLV looking for certificates */
+		app_tlv = cackey_read_tlv(slot);
+
+		for (app_curr = app_tlv; app_curr; app_curr = app_curr->_next) {
+			CACKEY_DEBUG_PRINTF("Found tag: %s", CACKEY_DEBUG_FUNC_TAG_TO_STR(app_curr->tag));
+			if (app_curr->tag != GSCIS_TAG_CERTIFICATE) {
+				CACKEY_DEBUG_PRINTF("  ... skipping it (we only care about CERTIFICATEs)");
+
+				continue;
+			}
+
+			curr_id = &certs[outidx];
+			outidx++;
+
+			memcpy(curr_id->applet, curr_aid, sizeof(curr_id->applet));
+			curr_id->file = ccc_curr->value_cardurl->objectid;
+			curr_id->label = NULL;
+
+			curr_id->certificate_len = app_curr->length;
+
+			curr_id->certificate = malloc(curr_id->certificate_len);
+			memcpy(curr_id->certificate, app_curr->value, curr_id->certificate_len);
+
+			if (outidx >= *count) {
+				if (certs_resizable) {
+					*count *= 2;
+					certs = realloc(certs, sizeof(*certs) * (*count));
+				} else {
+					break;
+				}
+			}
+		}
+
+		cackey_free_tlv(app_tlv);
+
+		if (outidx >= *count) {
+			break;
+		}
+	}
+
+	cackey_free_tlv(ccc_tlv);
+
+	*count = outidx;
+
+	if (certs_resizable) {
+		certs = realloc(certs, sizeof(*certs) * (*count));
+	}
+
+	return(certs);
+}
+
 /* Returns 1 if a token is in the specified slot, 0 otherwise */
 static int cackey_token_present(struct cackey_slot *slot) {
-	struct cackey_tlv_entity *tlvs, *curr;
-	unsigned char ccc_aid[] = {0xa0, 0x00, 0x00, 0x01, 0x16, 0xdb, 0x00};
-	unsigned char curr_aid[7];
+	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
 	int send_ret;
 
 	/* Select the CCC Applet */
@@ -1087,30 +1275,6 @@ static int cackey_token_present(struct cackey_slot *slot) {
 	if (send_ret < 0) {
 		return(0);
 	}
-
-	tlvs = cackey_read_tlv(slot);
-
-	for (curr = tlvs; curr; curr = curr->_next) {
-		CACKEY_DEBUG_PRINTF("Found tag: %s", CACKEY_DEBUG_FUNC_TAG_TO_STR(curr->tag));
-		switch (curr->tag) {
-			case GSCIS_TAG_CARDURL:
-				if ((curr->value_cardurl->apptype & CACKEY_TLV_APP_PKI) == CACKEY_TLV_APP_PKI) {
-					CACKEY_DEBUG_PRINTBUF("RID:", curr->value_cardurl->rid, sizeof(curr->value_cardurl->rid));
-					CACKEY_DEBUG_PRINTF("AppID = %s/%04lx", CACKEY_DEBUG_FUNC_OBJID_TO_STR(curr->value_cardurl->appid), (unsigned long) curr->value_cardurl->appid);
-					CACKEY_DEBUG_PRINTF("ObjectID = %s/%04lx", CACKEY_DEBUG_FUNC_OBJID_TO_STR(curr->value_cardurl->objectid), (unsigned long) curr->value_cardurl->objectid);
-
-					memcpy(curr_aid, curr->value_cardurl->rid, sizeof(curr->value_cardurl->rid));
-					curr_aid[sizeof(curr_aid) - 2] = (curr->value_cardurl->appid >> 8) & 0xff;
-					curr_aid[sizeof(curr_aid) - 1] = curr->value_cardurl->appid & 0xff;
-
-					cackey_select_applet(slot, curr_aid, sizeof(curr_aid));
-					cackey_select_file(slot, curr->value_cardurl->objectid);
-				}
-				break;
-		}
-	}
-
-	cackey_free_tlv(tlvs);
 
 	return(1);
 }
@@ -1224,7 +1388,7 @@ static int cackey_mutex_unlock(void *mutex) {
 	return(0);
 }
 
-static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, void *identity, unsigned long identity_num, CK_ULONG_PTR pulCount) {
+static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struct cackey_pcsc_identity *identity, unsigned long identity_num, CK_ULONG_PTR pulCount) {
 	static CK_BBOOL ck_true = 1;
 	static CK_BBOOL ck_false = 0;
 	CK_ULONG numattrs = 0, retval_count;
@@ -2125,12 +2289,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetPIN)(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR 
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify, CK_SESSION_HANDLE_PTR phSession) {
+	struct cackey_pcsc_identity *pcsc_identities;
 	struct cackey_identity *identities;
 	unsigned long idx, num_ids, id_idx, curr_id_type;
-#if 0
-	CK_BYTE sigbuf[1024];
-	ssize_t sigbuflen;
-#endif
+	unsigned long num_certs, cert_idx;
 	int mutex_retval;
 	int found_session = 0;
 
@@ -2159,13 +2321,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 	}
 
 	/* Verify that the card is actually in the slot. */
-	/* XXX: Talk to card */
-	if (0) {
-		if (0) {
-			CACKEY_DEBUG_PRINTF("Error.  Card not present.  Returning CKR_DEVICE_REMOVED");
+	if (!cackey_token_present(&cackey_slots[slotID])) {
+		CACKEY_DEBUG_PRINTF("Error.  Card not present.  Returning CKR_DEVICE_REMOVED");
 
-			return(CKR_DEVICE_REMOVED);
-		}
+		return(CKR_DEVICE_REMOVED);
 	}
 
 	mutex_retval = cackey_mutex_lock(cackey_biglock);
@@ -2192,21 +2351,17 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 			cackey_sessions[idx].identities = NULL;
 			cackey_sessions[idx].identities_count = 0;
 
-			if (0) {
-				num_ids = 0;
-				/* XXX: Determine number of IDs */
-
+			pcsc_identities = cackey_read_certs(&cackey_slots[slotID], NULL, &num_certs);
+			if (pcsc_identities != NULL) {
 				/* Convert number of IDs to number of objects */
-				num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_ids;
+				num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
 
 				identities = malloc(num_ids * sizeof(*identities));
 
 				id_idx = 0;
-				for (;;) {
+				for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
 					for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
-						/* XXX: Determine base index */
-
-						identities[id_idx].attributes = cackey_get_attributes(curr_id_type, NULL, -1, &identities[id_idx].attributes_count);
+						identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], -1, &identities[id_idx].attributes_count);
 
 						if (identities[id_idx].attributes == NULL) {
 							identities[id_idx].attributes_count = 0;
@@ -2218,6 +2373,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 
 				cackey_sessions[idx].identities = identities;
 				cackey_sessions[idx].identities_count = num_ids;
+
+				cackey_free_certs(pcsc_identities, num_certs, 1);
 			}
 
 			cackey_sessions[idx].search_active = 0;
