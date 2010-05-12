@@ -14,21 +14,28 @@ exec_prefix = @exec_prefix@
 libdir = @libdir@
 @SET_MAKE@
 
-all: cackey.@SHOBJEXT@
+all: libcackey.@SHOBJEXT@
 
-cackey.o: cackey.c
+cackey.o: cackey.c asn1-x509.h
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o cackey.o -c cackey.c
 
-cackey.@SHOBJEXT@: cackey.o
-	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o cackey.@SHOBJEXT@ cackey.o $(LIBS)
+asn1-x509.o: asn1-x509.c asn1-x509.h
+	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o asn1-x509.o -c asn1-x509.c
 
-install: cackey.@SHOBJEXT@
+libcackey.@SHOBJEXT@: cackey.o asn1-x509.o
+	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey.@SHOBJEXT@ cackey.o asn1-x509.o $(LIBS)
+
+test: test.c libcackey.@SHOBJEXT@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey.@SHOBJEXT@
+
+install: libcackey.@SHOBJEXT@
 	-mkdir "$(DESTDIR)$(libdir)"
-	cp cackey.@SHOBJEXT@ "$(DESTDIR)$(libdir)/"
+	cp libcackey.@SHOBJEXT@ "$(DESTDIR)$(libdir)/"
 
 clean:
-	rm -f cackey.@SHOBJEXT@
+	rm -f libcackey.@SHOBJEXT@
 	rm -f cackey.o
+	rm -f test
 
 distclean: clean
 	rm -f config.log config.status config.h Makefile
