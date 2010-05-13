@@ -509,10 +509,13 @@ typedef enum {
 } cackey_tlv_objectid;
 
 typedef enum {
-	CACKEY_LOGIN_OK     = 0,
-	CACKEY_LOGIN_BADPIN = -1,
-	CACKEY_LOGIN_LOCKED = -2
-} cackey_login_ret;
+	CACKEY_PCSC_S_TOKENPRESENT    = 2,
+	CACKEY_PCSC_S_TOKENABSENT     = 1,
+	CACKEY_PCSC_S_OK              = 0,
+	CACKEY_PCSC_E_GENERIC         = -1,
+	CACKEY_PCSC_E_BADPIN          = -2,
+	CACKEY_PCSC_E_LOCKED          = -3,
+} cackey_ret;
 
 struct cackey_tlv_cardurl {
 	unsigned char        rid[5];
@@ -603,7 +606,7 @@ static void cackey_slots_disconnect_all(void) {
 	return;
 }
 
-static int cackey_pcsc_connect(void) {
+static cackey_ret cackey_pcsc_connect(void) {
 	LONG scard_est_context_ret;
 #ifdef HAVE_SCARDISVALIDCONTEXT
 	LONG scard_isvalid_ret;
@@ -618,7 +621,7 @@ static int cackey_pcsc_connect(void) {
 
 			cackey_slots_disconnect_all();
 
-			return(-1);
+			return(CACKEY_PCSC_E_GENERIC);
 		}
 
 		CACKEY_DEBUG_PRINTF("SCardEstablishContext() called");
@@ -630,7 +633,7 @@ static int cackey_pcsc_connect(void) {
 
 			cackey_slots_disconnect_all();
 
-			return(-1);
+			return(CACKEY_PCSC_E_GENERIC);
 		}
 	}
 
@@ -649,7 +652,7 @@ static int cackey_pcsc_connect(void) {
 
 			cackey_slots_disconnect_all();
 
-			return(-1);
+			return(CACKEY_PCSC_E_GENERIC);
 		}
 
 		CACKEY_DEBUG_PRINTF("Handle has been re-established");
@@ -658,12 +661,12 @@ static int cackey_pcsc_connect(void) {
 
 	CACKEY_DEBUG_PRINTF("Sucessfully connected to PC/SC, returning in success");
 
-	return(0);
+	return(CACKEY_PCSC_S_OK);
 }
 
 /* APDU Related Functions */
 /** Le = 0x00 to indicate not to send Le **/
-static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsigned char instruction, unsigned char p1, unsigned char p2, unsigned char lc, unsigned char *data, unsigned char le, uint16_t *respcode, unsigned char *respdata, size_t *respdata_len) {
+static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsigned char instruction, unsigned char p1, unsigned char p2, unsigned char lc, unsigned char *data, unsigned char le, uint16_t *respcode, unsigned char *respdata, size_t *respdata_len) {
 	uint8_t major_rc, minor_rc;
 	size_t bytes_to_copy, tmp_respdata_len;
 	DWORD protocol;
@@ -678,14 +681,14 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 	if (!slot) {
 		CACKEY_DEBUG_PRINTF("Invalid slot specified.");
 
-		return(-1);
+		return(CACKEY_PCSC_E_GENERIC);
 	}
 
 	pcsc_connect_ret = cackey_pcsc_connect();
-	if (pcsc_connect_ret < 0) {
+	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, returning in failure");
 
-		return(-1);
+		return(CACKEY_PCSC_E_GENERIC);
 	}
 
 	/* Connect to reader, if needed */
@@ -696,7 +699,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
 			CACKEY_DEBUG_PRINTF("Connection to card failed, returning in failure (SCardConnect() = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_conn_ret), (long) scard_conn_ret);
 
-			return(-1);
+			return(CACKEY_PCSC_E_GENERIC);
 		}
 
 		slot->pcsc_card_connected = 1;
@@ -740,7 +743,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 					SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
 					slot->pcsc_card_connected = 0;
 
-					return(-1);
+					return(CACKEY_PCSC_E_GENERIC);
 				}
 			} else {
 				CACKEY_DEBUG_PRINTF("Disconnecting card");
@@ -749,7 +752,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 				slot->pcsc_card_connected = 0;
 
 				CACKEY_DEBUG_PRINTF("Returning in failure");
-				return(-1);
+				return(CACKEY_PCSC_E_GENERIC);
 			}
 		} else {
 			CACKEY_DEBUG_PRINTF("Disconnecting card");
@@ -758,7 +761,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 			slot->pcsc_card_connected = 0;
 
 			CACKEY_DEBUG_PRINTF("Returning in failure");
-			return(-1);
+			return(CACKEY_PCSC_E_GENERIC);
 		}
 	}
 
@@ -768,7 +771,7 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 		/* Minimal response length is 2 bytes, returning in failure */
 		CACKEY_DEBUG_PRINTF("Response too small, returning in failure (recv_len = %lu)", (unsigned long) recv_len);
 
-		return(-1);
+		return(CACKEY_PCSC_E_GENERIC);
 	}
 
 	/* Determine result code */
@@ -810,10 +813,10 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 		CACKEY_DEBUG_PRINTF("Buffer read required");
 
 		pcsc_getresp_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_GET_RESPONSE, 0x00, 0x00, 0, NULL, minor_rc, respcode, respdata, &tmp_respdata_len);
-		if (pcsc_getresp_ret < 0) {
+		if (pcsc_getresp_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("Buffer read failed!  Returning in failure");
 
-			return(-1);
+			return(CACKEY_PCSC_E_GENERIC);
 		}
 
 		if (respdata_len) {
@@ -821,20 +824,20 @@ static int cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsig
 		}
 
 		CACKEY_DEBUG_PRINTF("Returning in success (buffer read complete)");
-		return(0);
+		return(CACKEY_PCSC_S_OK);
 	}
 
 	if (major_rc == 0x90) {
 		/* Success */
 		CACKEY_DEBUG_PRINTF("Returning in success (major_rc = 0x90)");
 
-		return(0);
+		return(CACKEY_PCSC_S_OK);
 	}
 
 
 	CACKEY_DEBUG_PRINTF("APDU Returned an error, returning in failure");
 
-	return(-1);
+	return(CACKEY_PCSC_E_GENERIC);
 }
 
 static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffer, size_t count, unsigned char t_or_v, size_t initial_offset) {
@@ -865,7 +868,7 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 		cmd[1] = count;
 
 		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_READ_BUFFER, ((initial_offset + offset) >> 8) & 0xff, (initial_offset + offset) & 0xff, sizeof(cmd), cmd, 0x00, &respcode, buffer + offset, &count);
-		if (send_ret < 0) {
+		if (send_ret != CACKEY_PCSC_S_OK) {
 			if (respcode == 0x6A86) {
 				if (max_count == 1) {
 					break;
@@ -895,7 +898,7 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 	return(offset);
 }
 
-static int cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, size_t aid_len) {
+static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, size_t aid_len) {
 	int send_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -903,18 +906,18 @@ static int cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, si
 	CACKEY_DEBUG_PRINTBUF("Selecting applet:", aid, aid_len);
 
 	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, GSCIS_PARAM_SELECT_APPLET, 0x0C, aid_len, aid, 0x00, NULL, NULL, NULL);
-	if (send_ret < 0) {
+	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Failed to open applet, returning in failure");
 
-		return(-1);
+		return(CACKEY_PCSC_E_GENERIC);
 	}
 
 	CACKEY_DEBUG_PRINTF("Successfully selected file");
 
-	return(0);
+	return(CACKEY_PCSC_S_OK);
 }
 
-static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
+static cackey_ret cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 	unsigned char fid_buf[2];
 	int send_ret;
 
@@ -927,15 +930,15 @@ static int cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 	CACKEY_DEBUG_PRINTF("Selecting file: %04lx", (unsigned long) ef);
 
 	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, 0x02, 0x0C, sizeof(fid_buf), fid_buf, 0x00, NULL, NULL, NULL);
-	if (send_ret < 0) {
+	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Failed to open file, returning in failure");
 
-		return(-1);
+		return(CACKEY_PCSC_E_GENERIC);
 	}
 
 	CACKEY_DEBUG_PRINTF("Successfully selected file");
 
-	return(0);
+	return(CACKEY_PCSC_S_OK);
 }
 
 static void cackey_free_tlv(struct cackey_tlv_entity *root) {
@@ -1171,7 +1174,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 
 	/* Select the CCC Applet */
 	send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
-	if (send_ret < 0) {
+	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Unable to select CCC Applet, returning in failure");
 
 		return(NULL);
@@ -1206,7 +1209,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 
 		/* Select found applet ... */
 		select_ret = cackey_select_applet(slot, curr_aid, sizeof(curr_aid));
-		if (select_ret < 0) {
+		if (select_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("Failed to select applet, skipping processing of this object");
 
 			continue;
@@ -1214,7 +1217,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 
 		/* ... and object (file) */
 		select_ret = cackey_select_file(slot, ccc_curr->value_cardurl->objectid);
-		if (select_ret < 0) {
+		if (select_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("Failed to select file, skipping processing of this object");
 
 			continue;
@@ -1271,7 +1274,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	return(certs);
 }
 
-static int cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned long pin_len, int *tries_remaining_p) {
+static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned long pin_len, int *tries_remaining_p) {
 	uint16_t response_code;
 	int tries_remaining;
 	int send_ret;
@@ -1283,7 +1286,7 @@ static int cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned l
 
 	/* Issue PIN Verify */
 	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_VERIFY, 0x00, 0x00, pin_len, pin, 0x00, &response_code, NULL, NULL);
-	if (send_ret < 0) {
+	if (send_ret != CACKEY_PCSC_S_OK) {
 		if ((response_code & 0x63C0) == 0x63C0) {
 			tries_remaining = (response_code & 0xF);
 
@@ -1292,30 +1295,36 @@ static int cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned l
 			if (tries_remaining_p) {
 				*tries_remaining_p = tries_remaining;
 			}
+
+			return(CACKEY_PCSC_E_BADPIN);
 		}
 
 		if (response_code == 0x6983) {
-			return(CACKEY_LOGIN_LOCKED);
-		} else {
-			return(CACKEY_LOGIN_BADPIN);
+			CACKEY_DEBUG_PRINTF("PIN Verification failed, device is locked");
+
+			return(CACKEY_PCSC_E_LOCKED);
 		}
+
+		return(CACKEY_PCSC_E_GENERIC);
 	}
 
-	return(CACKEY_LOGIN_OK);
+	CACKEY_DEBUG_PRINTF("PIN Verification succeeded");
+
+	return(CACKEY_PCSC_S_OK);
 }
 
 /* Returns 1 if a token is in the specified slot, 0 otherwise */
-static int cackey_token_present(struct cackey_slot *slot) {
+static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
 	int send_ret;
 
 	/* Select the CCC Applet */
 	send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
-	if (send_ret < 0) {
-		return(0);
+	if (send_ret != CACKEY_PCSC_S_OK) {
+		return(CACKEY_PCSC_S_TOKENABSENT);
 	}
 
-	return(1);
+	return(CACKEY_PCSC_S_TOKENPRESENT);
 }
 
 /* Returns 0 on success */
@@ -1965,7 +1974,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 	/* Determine list of readers */
 	pcsc_connect_ret = cackey_pcsc_connect();
-	if (pcsc_connect_ret < 0) {
+	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, assuming no slots");
 
 		slot_count = 0;
@@ -2103,7 +2112,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 
 	pInfo->flags = 0;
 
-	if (cackey_token_present(&cackey_slots[slotID])) {
+	if (cackey_token_present(&cackey_slots[slotID]) == CACKEY_PCSC_S_TOKENPRESENT) {
 		pInfo->flags |= CKF_TOKEN_PRESENT;
 	}
 
@@ -2149,7 +2158,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
 	}
 
-	if (!cackey_token_present(&cackey_slots[slotID])) {
+	if (cackey_token_present(&cackey_slots[slotID]) != CACKEY_PCSC_S_TOKENPRESENT) {
 		CACKEY_DEBUG_PRINTF("No token is present in slotID = %lu", slotID);
 
 		return(CKR_TOKEN_NOT_PRESENT);
@@ -2379,7 +2388,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 	}
 
 	/* Verify that the card is actually in the slot. */
-	if (!cackey_token_present(&cackey_slots[slotID])) {
+	if (cackey_token_present(&cackey_slots[slotID]) != CACKEY_PCSC_S_TOKENPRESENT) {
 		CACKEY_DEBUG_PRINTF("Error.  Card not present.  Returning CKR_DEVICE_REMOVED");
 
 		return(CKR_DEVICE_REMOVED);
@@ -2680,18 +2689,22 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 	}
 
 	login_ret = cackey_login(&cackey_slots[cackey_sessions[hSession].slotID], pPin, ulPinLen, NULL);
-	if (login_ret != CACKEY_LOGIN_OK) {
+	if (login_ret != CACKEY_PCSC_S_OK) {
 		cackey_mutex_unlock(cackey_biglock);
 
-		if (login_ret == CACKEY_LOGIN_LOCKED) {
+		if (login_ret == CACKEY_PCSC_E_LOCKED) {
 			CACKEY_DEBUG_PRINTF("Error.  Token is locked.");
 
 			return(CKR_PIN_LOCKED);
-		} else {
+		} else if (login_ret == CACKEY_PCSC_E_BADPIN) {
 			CACKEY_DEBUG_PRINTF("Error.  Invalid PIN.");
 
 			return(CKR_PIN_INCORRECT);
 		}
+
+		CACKEY_DEBUG_PRINTF("Error.  Unknown error returned from cackey_login() (%i)", login_ret);
+
+		return(CKR_GENERAL_ERROR);
 	}
 
 	cackey_sessions[hSession].state = CKS_RO_USER_FUNCTIONS;
