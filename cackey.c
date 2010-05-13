@@ -1275,6 +1275,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 }
 
 static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned long pin_len, int *tries_remaining_p) {
+	unsigned char cac_pin[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint16_t response_code;
 	int tries_remaining;
 	int send_ret;
@@ -1284,8 +1285,15 @@ static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, uns
 		*tries_remaining_p = -1;
 	}
 
+	/* Apparently, CAC PINs are *EXACTLY* 8 bytes long -- pad with 0xFF if too short */
+	if (pin_len >= 8) {
+		memcpy(cac_pin, pin, 8);
+	} else {
+		memcpy(cac_pin, pin, pin_len);
+	}
+
 	/* Issue PIN Verify */
-	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_VERIFY, 0x00, 0x00, pin_len, pin, 0x00, &response_code, NULL, NULL);
+	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_VERIFY, 0x00, 0x00, sizeof(cac_pin), cac_pin, 0x00, &response_code, NULL, NULL);
 	if (send_ret != CACKEY_PCSC_S_OK) {
 		if ((response_code & 0x63C0) == 0x63C0) {
 			tries_remaining = (response_code & 0xF);
