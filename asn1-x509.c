@@ -145,7 +145,9 @@ ssize_t x509_to_issuer(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 		return(-1);
 	}
 
-	*outbuf = x509.issuer.asn1rep;
+	if (outbuf) {
+		*outbuf = x509.issuer.asn1rep;
+	}
 
 	return(x509.issuer.asn1rep_len);
 }
@@ -159,7 +161,9 @@ ssize_t x509_to_subject(void *x509_der_buf, size_t x509_der_buf_len, void **outb
 		return(-1);
 	}
 
-	*outbuf = x509.subject.asn1rep;
+	if (outbuf) {
+		*outbuf = x509.subject.asn1rep;
+	}
 
 	return(x509.subject.asn1rep_len);
 }
@@ -173,7 +177,9 @@ ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 		return(-1);
 	}
 
-	*outbuf = x509.serial_number.asn1rep;
+	if (outbuf) {
+		*outbuf = x509.serial_number.asn1rep;
+	}
 
 	return(x509.serial_number.asn1rep_len);
 }

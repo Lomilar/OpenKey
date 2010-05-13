@@ -1439,7 +1439,7 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 	CK_CERTIFICATE_TYPE ck_certificate_type;
 	CK_KEY_TYPE ck_key_type;
 	CK_UTF8CHAR ucTmpBuf[1024];
-	unsigned char certificate[16384];
+	unsigned char *certificate;
 	ssize_t certificate_len = -1, x509_read_ret;
 	int pValue_free;
 
@@ -1451,17 +1451,31 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 		return(NULL);
 	}
 
-	retval_count = 16;
-	retval = malloc(retval_count * sizeof(*retval));
+	/* Get Cert */
+	if (identity == NULL) {
+		CACKEY_DEBUG_PRINTF("Returning 0 objects (NULL), invalid identiy provided");
 
-	/* XXX: Get Cert */
-	certificate_len = -1;
+		return(NULL);
+	}
 
-	if (certificate_len == -1) {
+	certificate = identity->certificate;
+	certificate_len = identity->certificate_len;
+
+	if (certificate_len == -1 || certificate == NULL) {
 		CACKEY_DEBUG_PRINTF("Returning 0 objects (NULL), this identity does not have an X.509 certificate associated with it and will not work");
 
 		return(NULL);
 	}
+
+	/* Verify that certificate is ASN.1 encoded X.509 certificate */
+	if (x509_to_serial(certificate, certificate_len, NULL) < 0) {
+		CACKEY_DEBUG_PRINTF("Returning 0 objects (NULL), the X.509 certificate associated with this identity is not valid");
+
+		return(NULL);
+	}
+
+	retval_count = 16;
+	retval = malloc(retval_count * sizeof(*retval));
 
 	for (curr_attr_type = 0; curr_attr_type < 0xce53635f; curr_attr_type++) {
 		if (curr_attr_type == 0x800) {
@@ -2978,7 +2992,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 			id_idx = 0;
 			for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
 				for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
-					identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], -1, &identities[id_idx].attributes_count);
+					identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], cert_idx, &identities[id_idx].attributes_count);
 
 					if (identities[id_idx].attributes == NULL) {
 						identities[id_idx].attributes_count = 0;
