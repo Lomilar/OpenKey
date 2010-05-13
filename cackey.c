@@ -1321,7 +1321,6 @@ static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, uns
 	return(CACKEY_PCSC_S_OK);
 }
 
-/* Returns 1 if a token is in the specified slot, 0 otherwise */
 static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
 	int send_ret;
