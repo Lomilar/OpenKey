@@ -34,7 +34,7 @@ install: libcackey.@SHOBJEXT@
 
 clean:
 	rm -f libcackey.@SHOBJEXT@
-	rm -f cackey.o
+	rm -f cackey.o asn1-x509.o
 	rm -f test
 
 distclean: clean
