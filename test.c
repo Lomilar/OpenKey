@@ -110,6 +110,7 @@ int main_pkcs11(void) {
 	CK_ULONG signature_len, encrypted_buflen, decrypted_buflen;
 	CK_MECHANISM mechanism = {CKM_RSA_PKCS, NULL, 0};
 	CK_RV chk_rv;
+	char *fgets_ret;
 	int i;
 
 	privateKeyObjects = malloc(sizeof(*privateKeyObjects) * 1024);
@@ -265,12 +266,19 @@ int main_pkcs11(void) {
 	chk_rv = C_OpenSession(slots[0], CKF_SERIAL_SESSION, NULL, NULL, &hSession);
 	if (chk_rv == CKR_OK) {
 		if ((tokenInfo.flags & CKF_LOGIN_REQUIRED) == CKF_LOGIN_REQUIRED) {
-			printf("** ENTER PIN: ");
-			fflush(stdout);
+			fgets_ret = NULL;
 
-			fgets((char *) user_pin, sizeof(user_pin), stdin);
-			while (user_pin[strlen((char *) user_pin) - 1] < ' ') {
-				user_pin[strlen((char *) user_pin) - 1] = '\0';
+			while (fgets_ret == NULL) {
+				printf("** ENTER PIN: ");
+				fflush(stdout);
+
+				fgets_ret = fgets((char *) user_pin, sizeof(user_pin), stdin);
+			}
+
+			if (strlen(user_pin) >= 1) {
+				while (user_pin[strlen((char *) user_pin) - 1] < ' ') {
+					user_pin[strlen((char *) user_pin) - 1] = '\0';
+				}
 			}
 
 			chk_rv = C_Login(hSession, CKU_USER, user_pin, strlen((char *) user_pin));
