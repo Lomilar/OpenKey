@@ -275,7 +275,7 @@ int main_pkcs11(void) {
 				fgets_ret = fgets((char *) user_pin, sizeof(user_pin), stdin);
 			}
 
-			if (strlen(user_pin) >= 1) {
+			if (strlen((char *) user_pin) >= 1) {
 				while (user_pin[strlen((char *) user_pin) - 1] < ' ') {
 					user_pin[strlen((char *) user_pin) - 1] = '\0';
 				}
