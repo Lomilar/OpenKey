@@ -1519,9 +1519,17 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_LABEL:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_LABEL (0x%08lx) ...", (unsigned long) curr_attr_type);
 
-				/* XXX: Determine name */
+				/* Determine name */
+				if (certificate_len >= 0) {
+					x509_read_ret = x509_to_subject(certificate, certificate_len, &pValue);
+					if (x509_read_ret < 0) {
+						pValue = NULL;
+					} else {
+						ulValueLen = x509_read_ret;
+					}
+				}
 
-				CACKEY_DEBUG_PRINTF(" ... returning %s (%p/%lu)", (char *) ((CK_UTF8CHAR *) pValue), pValue, (unsigned long) ulValueLen);
+				CACKEY_DEBUG_PRINTF(" ... returning (%p/%lu)", pValue, (unsigned long) ulValueLen);
 
 				break;
 			case CKA_VALUE:
