@@ -1817,6 +1817,50 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	return(CACKEY_PCSC_S_TOKENPRESENT);
 }
 
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
+static ssize_t cackey_pcsc_identity_to_label(struct cackey_pcsc_identity *identity, unsigned char *label_buf, unsigned long label_buf_len) {
+	unsigned long certificate_len;
+	char *label_asn1;
+	void *certificate;
+	int x509_read_ret;
+
+	certificate = identity->certificate;
+	certificate_len = identity->certificate_len;
+
+	if (certificate_len < 0) {
+		return(-1);
+	}
+
+	x509_read_ret = x509_to_subject(certificate, certificate_len, (void **) &label_asn1);
+	if (x509_read_ret < 0) {
+		return(-1);
+	}
+
+	x509_read_ret = x509_dn_to_string(label_asn1, x509_read_ret, (char *) label_buf, label_buf_len, "CN");
+	if (x509_read_ret <= 0) {
+		x509_read_ret = x509_dn_to_string(label_asn1, x509_read_ret, (char *) label_buf, label_buf_len, NULL);
+
+		if (x509_read_ret <= 0) {
+			return(-1);
+		}
+	}
+
+	return(x509_read_ret);
+}
+
 /* Returns 0 on success */
 static int cackey_mutex_create(void **mutex) {
 	pthread_mutex_t *pthread_mutex;
@@ -1926,6 +1970,31 @@ static int cackey_mutex_unlock(void *mutex) {
 	return(0);
 }
 
+static void cackey_free_identities(struct cackey_identity *identities, unsigned long identities_count) {
+	CK_ATTRIBUTE *curr_attr;
+	unsigned long id_idx, attr_idx;
+
+	if (identities || identities_count == 0) {
+		return;
+	}
+
+	for (id_idx = 0; id_idx < identities_count; id_idx++) {
+		if (identities[id_idx].attributes) {
+			for (attr_idx = 0; attr_idx < identities[id_idx].attributes_count; attr_idx++) {
+				curr_attr = &identities[id_idx].attributes[attr_idx];
+
+				if (curr_attr->pValue) {
+					free(curr_attr->pValue);
+				}
+			}
+
+			free(identities[id_idx].attributes);
+		}
+	}
+
+	free(identities);
+}
+
 static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struct cackey_pcsc_identity *identity, unsigned long identity_num, CK_ULONG_PTR pulCount) {
 	static CK_BBOOL ck_true = 1;
 	static CK_BBOOL ck_false = 0;
@@ -2019,26 +2088,10 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_LABEL (0x%08lx) ...", (unsigned long) curr_attr_type);
 
 				/* Determine name */
-				if (certificate_len >= 0) {
-					x509_read_ret = x509_to_subject(certificate, certificate_len, &pValue);
-					if (x509_read_ret > 0) {
-						x509_read_ret = x509_dn_to_string(pValue, x509_read_ret, (char *) ucTmpBuf, sizeof(ucTmpBuf), "CN");
-						if (x509_read_ret <= 0) {
-							x509_read_ret = x509_dn_to_string(pValue, x509_read_ret, (char *) ucTmpBuf, sizeof(ucTmpBuf), NULL);
-
-							if (x509_read_ret <= 0) {
-								pValue = NULL;
-							} else {
-								pValue = ucTmpBuf;
-								ulValueLen = x509_read_ret;
-							}
-						} else {
-							pValue = ucTmpBuf;
-							ulValueLen = x509_read_ret;
-						}
-					} else {
-						pValue = NULL;
-					}
+				x509_read_ret = cackey_pcsc_identity_to_label(identity, ucTmpBuf, sizeof(ucTmpBuf));
+				if (x509_read_ret > 0) {
+					pValue = ucTmpBuf;
+					ulValueLen = x509_read_ret;
 				}
 
 				CACKEY_DEBUG_PRINTF(" ... returning (%p/%lu)", pValue, (unsigned long) ulValueLen);
@@ -2653,7 +2706,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 	static CK_UTF8CHAR manufacturerID[] = "U.S. Government";
 	static CK_UTF8CHAR defaultLabel[] = "Unknown Token";
 	static CK_UTF8CHAR model[] = "CAC Token";
+	struct cackey_pcsc_identity *pcsc_identities;
+	unsigned long num_certs;
+	ssize_t label_ret;
 	int mutex_retval;
+	int use_default_label;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -2705,10 +2762,24 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 		return(CKR_GENERAL_ERROR);
 	}
 
+	/* Determine token label from certificates */
 	memset(pInfo->label, ' ', sizeof(pInfo->label));
-	if (1) {
+	use_default_label = 1;
+
+	pcsc_identities = cackey_read_certs(&cackey_slots[slotID], NULL, &num_certs);
+	if (pcsc_identities != NULL) {
+		if (num_certs > 0) {
+			label_ret = cackey_pcsc_identity_to_label(pcsc_identities, pInfo->label, sizeof(pInfo->label));
+			if (label_ret > 0) {
+				use_default_label = 0;
+			}
+		}
+
+		cackey_free_certs(pcsc_identities, num_certs, 1);
+	}
+
+	if (use_default_label) {
 		memcpy(pInfo->label, defaultLabel, sizeof(defaultLabel) - 1);
-	} else {
 	}
 
 	memset(pInfo->manufacturerID, ' ', sizeof(pInfo->manufacturerID));
@@ -3010,8 +3081,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession) {
-	CK_ATTRIBUTE *curr_attr;
-	unsigned long id_idx, attr_idx;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -3044,23 +3113,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession) {
 	}
 
 	cackey_sessions[hSession].active = 0;
-	if (cackey_sessions[hSession].identities) {
-		for (id_idx = 0; id_idx < cackey_sessions[hSession].identities_count; id_idx++) {
-			if (cackey_sessions[hSession].identities[id_idx].attributes) {
-				for (attr_idx = 0; attr_idx < cackey_sessions[hSession].identities[id_idx].attributes_count; attr_idx++) {
-					curr_attr = &cackey_sessions[hSession].identities[id_idx].attributes[attr_idx];
-
-					if (curr_attr->pValue) {
-						free(curr_attr->pValue);
-					}
-				}
-
-				free(cackey_sessions[hSession].identities[id_idx].attributes);
-			}
-		}
-
-		free(cackey_sessions[hSession].identities);
-	}
+	cackey_free_identities(cackey_sessions[hSession].identities, cackey_sessions[hSession].identities_count);
 
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
 	if (mutex_retval != 0) {
@@ -3567,6 +3620,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		return(CKR_OPERATION_ACTIVE);
 	}
 
+	if (cackey_sessions[hSession].identities != NULL) {
+		cackey_free_identities(cackey_sessions[hSession].identities, cackey_sessions[hSession].identities_count);
+
+		cackey_sessions[hSession].identities = NULL;
+		cackey_sessions[hSession].identities_count = 0;
+	}
+
 	if (cackey_sessions[hSession].identities == NULL) {
 		pcsc_identities = cackey_read_certs(&cackey_slots[cackey_sessions[hSession].slotID], NULL, &num_certs);
 		if (pcsc_identities != NULL) {
@@ -3704,7 +3764,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_H
 		return(CKR_OPERATION_NOT_INITIALIZED);
 	}
 
-	curr_id_idx = 0;
 	curr_out_id_idx = 0;
 	for (curr_id_idx = cackey_sessions[hSession].search_curr_id; curr_id_idx < cackey_sessions[hSession].identities_count && ulMaxObjectCount; curr_id_idx++) {
 		curr_id = &cackey_sessions[hSession].identities[curr_id_idx];
