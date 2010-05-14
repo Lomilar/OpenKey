@@ -151,7 +151,7 @@
 #  endif
 
 #  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s(): ", __func__); fprintf(stderr, x); fprintf(stderr, "\n"); }
-#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *buf; unsigned long idx; buf = (unsigned char *) (x); fprintf(stderr, "%s(): %s  (%s/%lu = {%02x", __func__, f, #x, (unsigned long) (y), buf[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", buf[idx]); }; fprintf(stderr, "})\n"); }
+#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s(): %s  (%s/%lu = {%02x", __func__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); }
 #  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s(): ", __func__); perror(x); }
 #  define free(x) { CACKEY_DEBUG_PRINTF("FREE(%p) (%s)", x, #x); free(x); }
 
@@ -586,6 +586,20 @@ static unsigned long cackey_getversion(void) {
 }
 
 /* PC/SC Related Functions */
+/*
+ * SYNPOSIS
+ *     void cackey_slots_disconnect_all(void);
+ *
+ * ARGUMENTS
+ *     None
+ *
+ * RETURN VALUE
+ *     None
+ *
+ * NOTES
+ *     This function disconnects from all cards.
+ *
+ */
 static void cackey_slots_disconnect_all(void) {
 	uint32_t idx;
 
@@ -606,6 +620,22 @@ static void cackey_slots_disconnect_all(void) {
 	return;
 }
 
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_pcsc_connect(void);
+ *
+ * ARGUMENTS
+ *     None
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     This function connects to the PC/SC Connection Manager and updates the
+ *     global handle.
+ *
+ */
 static cackey_ret cackey_pcsc_connect(void) {
 	LONG scard_est_context_ret;
 #ifdef HAVE_SCARDISVALIDCONTEXT
@@ -665,7 +695,72 @@ static cackey_ret cackey_pcsc_connect(void) {
 }
 
 /* APDU Related Functions */
-/** Le = 0x00 to indicate not to send Le **/
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsigned char instruction, unsigned char p1, unsigned char p2, unsigned char lc, unsigned char *data, unsigned char le, uint16_t *respcode, unsigned char *respdata, size_t *respdata_len);
+ *
+ * ARGUMENTS
+ *     cackey_slot *slot
+ *         Slot to send commands to
+ *
+ *     unsigned char class
+ *         APDU Class (GSCIS_CLASS_ISO7816 or GSCIS_CLASS_GLOBAL_PLATFORM
+ *         usually), (CLA)
+ *
+ *     unsigned char instruction
+ *         APDU Instruction (INS)
+ *
+ *     unsigned char p1
+ *         APDU Parameter 1 (P1)
+ *
+ *     unsigned char p2
+ *         APDU Parameter 2 (P2)
+ *
+ *     unsigned char lc
+ *         APDU Length of Content (Lc) -- this is the length of "data"
+ *         parameter.  If "data" is specified as NULL, this parameter will
+ *         be ignored.
+ *
+ *     unsigned char *data
+ *         Pointer to buffer to send.  It should be "Lc" bytes long.  If
+ *         specified as NULL, "Lc" will not be sent, and this buffer will be
+ *         ignored.
+ *
+ *     unsigned char le
+ *         APDU Length of Expectation (Le) -- this is the length of the
+ *         expected reply.  If this is specified as 0 then it will not
+ *         be sent.
+ *
+ *     uint16_t *respcode
+ *         [OUT] Pointer to storage of APDU response code.  If this is
+ *         specified as NULL, the response code will be discarded.
+ *
+ *     unsigned char *respdata
+ *         [OUT] Pointer to storage of APDU response data.  If this is
+ *         specified as NULL, the response data will be discarded.  If
+ *         the "respdata_len" parameter is specified as NULL, this buffer
+ *         will not be updated.
+ *
+ *     size_t *respdata_len
+ *         [IN, OUT] Pointer initialing containing the size of the "respdata"
+ *         buffer.  Before returning, the pointed to value is updated to the
+ *         number of bytes written to the buffer.  If this is specified as
+ *         NULL, it will not be updated, and "respdata" will be ignored causing
+ *         the response data to be discarded.
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     This function will connect to the PC/SC Connection Manager via
+ *     cackey_pcsc_connect() if needed.
+ *
+ *     It will connect to the card in the reader attached to the slot
+ *     specified.  It will reconnect to the card if the connection
+ *     goes away.
+ *
+ */
 static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsigned char instruction, unsigned char p1, unsigned char p2, unsigned char lc, unsigned char *data, unsigned char le, uint16_t *respcode, unsigned char *respdata, size_t *respdata_len) {
 	uint8_t major_rc, minor_rc;
 	size_t bytes_to_copy, tmp_respdata_len;
@@ -840,6 +935,34 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	return(CACKEY_PCSC_E_GENERIC);
 }
 
+/*
+ * SYNPOSIS
+ *     ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffer, size_t count, unsigned char t_or_v, size_t initial_offset);
+ *
+ * ARGUMENTS
+ *     struct cackey_slot *slot
+ *         Slot to send commands to
+ *
+ *     unsigned char *buffer
+ *         [OUT] Buffer
+ *
+ *     size_t count
+ *         Number of bytes to attempt to read
+ *
+ *     unsigned char t_or_v
+ *         Select the T-buffer (01) or V-buffer (02) to read from.  
+ *
+ *     size_t initial_offset
+ *         Specify the offset to begin the read from
+ *
+ *
+ * RETURN VALUE
+ *     This function returns the number of bytes actually read, or -1 on error.
+ *
+ * NOTES
+ *     None
+ *
+ */
 static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffer, size_t count, unsigned char t_or_v, size_t initial_offset) {
 	size_t offset = 0, max_offset, max_count;
 	unsigned char cmd[2];
@@ -850,6 +973,12 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 
 	max_offset = count;
 	max_count = 252;
+
+	if (t_or_v != 1 && t_or_v != 2) {
+		CACKEY_DEBUG_PRINTF("Invalid T or V parameter specified, returning in failure");
+
+		return(-1);
+	}
 
 	cmd[0] = t_or_v;
 
@@ -898,6 +1027,28 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 	return(offset);
 }
 
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, size_t aid_len);
+ *
+ * ARGUMENTS
+ *     struct cackey_slot *slot
+ *         Slot to send commands to
+ *
+ *     unsigned char *aid
+ *         Buffer containing Applet ID to select
+ *
+ *     size_t aid_len
+ *         Number of bytes in the "aid" (Applet ID) parameter
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     None
+ *
+ */
 static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *aid, size_t aid_len) {
 	int send_ret;
 
@@ -917,6 +1068,29 @@ static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *
 	return(CACKEY_PCSC_S_OK);
 }
 
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_select_file(struct cackey_slot *slot, uint16_t ef);
+ *
+ * ARGUMENTS
+ *     struct cackey_slot *slot
+ *         Slot to send commands to
+ *
+ *     uint16_t ef
+ *         Elemental File to select
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     This selects an Elementary File (EF) under the currently selected
+ *     Dedicated File (DF)
+ *
+ *     Typically this is called after selecting the correct Applet (using
+ *     cackey_select_applet) for VM cards
+ *
+ */
 static cackey_ret cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 	unsigned char fid_buf[2];
 	int send_ret;
@@ -941,6 +1115,22 @@ static cackey_ret cackey_select_file(struct cackey_slot *slot, uint16_t ef) {
 	return(CACKEY_PCSC_S_OK);
 }
 
+/*
+ * SYNPOSIS
+ *     void cackey_free_tlv(struct cackey_tlv_entity *root);
+ *
+ * ARGUMENTS
+ *     struct cackey_tlv_entity *root
+ *         Root of the TLV list to start freeing
+ *
+ * RETURN VALUE
+ *     None
+ *
+ * NOTES
+ *     This function frees the TLV linked listed returned from
+ *     "cackey_read_tlv"
+ *
+ */
 static void cackey_free_tlv(struct cackey_tlv_entity *root) {
 	struct cackey_tlv_entity *curr, *next;
 
@@ -971,6 +1161,20 @@ static void cackey_free_tlv(struct cackey_tlv_entity *root) {
 	return;
 }
 
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
 static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	struct cackey_tlv_entity *curr_entity, *root = NULL, *last = NULL;
 	unsigned char tlen_buf[2], tval_buf[1024], *tval;
@@ -1123,6 +1327,20 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	return(root);
 }
 
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
 static void cackey_free_certs(struct cackey_pcsc_identity *start, size_t count, int free_start) {
 	size_t idx;
 
@@ -1139,6 +1357,20 @@ static void cackey_free_certs(struct cackey_pcsc_identity *start, size_t count, 
 	return;
 }
 
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
 static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, struct cackey_pcsc_identity *certs, unsigned long *count) {
 	struct cackey_pcsc_identity *curr_id;
 	struct cackey_tlv_entity *ccc_tlv, *ccc_curr, *app_tlv, *app_curr;
@@ -1274,6 +1506,20 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	return(certs);
 }
 
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
 static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned long pin_len, int *tries_remaining_p) {
 	unsigned char cac_pin[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint16_t response_code;
@@ -1321,6 +1567,20 @@ static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, uns
 	return(CACKEY_PCSC_S_OK);
 }
 
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
 static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
 	int send_ret;
