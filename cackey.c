@@ -496,6 +496,8 @@ struct cackey_slot {
 	SCARDHANDLE pcsc_card;
 
 	int transaction_depth;
+
+	int slot_reset;
 };
 
 typedef enum {
@@ -625,6 +627,12 @@ static void cackey_slots_disconnect_all(void) {
 
 		cackey_slots[idx].pcsc_card_connected = 0;
 		cackey_slots[idx].transaction_depth = 0;
+
+		if (cackey_slots[idx].active) {
+			CACKEY_DEBUG_PRINTF("Marking active slot %lu as being reset", (unsigned long) idx);
+		}
+
+		cackey_slots[idx].slot_reset = 1;
 	}
 
 	CACKEY_DEBUG_PRINTF("Returning");
@@ -702,6 +710,43 @@ static cackey_ret cackey_pcsc_connect(void) {
 #endif
 
 	CACKEY_DEBUG_PRINTF("Sucessfully connected to PC/SC, returning in success");
+
+	return(CACKEY_PCSC_S_OK);
+}
+
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_pcsc_disconnect(void);
+ *
+ * ARGUMENTS
+ *     None
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     This function disconnects from the PC/SC Connection manager and updates
+ *     the global handle.
+ *
+ */
+static cackey_ret cackey_pcsc_disconnect(void) {
+	LONG scard_rel_context_ret;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (cackey_pcsc_handle == NULL) {
+		return(CACKEY_PCSC_S_OK);
+	}
+
+	scard_rel_context_ret = SCardReleaseContext(*cackey_pcsc_handle);
+
+	free(cackey_pcsc_handle);
+	cackey_pcsc_handle = NULL;
+
+	if (scard_rel_context_ret != SCARD_S_SUCCESS) {
+		return(CACKEY_PCSC_E_GENERIC);
+	}
 
 	return(CACKEY_PCSC_S_OK);
 }
@@ -980,8 +1025,10 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
+		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
 
 		slot->transaction_depth = 0;
+		slot->slot_reset = 1;
 
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
@@ -1597,8 +1644,8 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 		return(NULL);
 	}
 
-	if (*count == 0) {
-		if (certs != NULL) {
+	if (certs != NULL) {
+		if (*count == 0) {
 			CACKEY_DEBUG_PRINTF("Requested we return 0 objects, short-circuit");
 
 			return(certs);
@@ -1974,7 +2021,7 @@ static void cackey_free_identities(struct cackey_identity *identities, unsigned 
 	CK_ATTRIBUTE *curr_attr;
 	unsigned long id_idx, attr_idx;
 
-	if (identities || identities_count == 0) {
+	if (identities == NULL || identities_count == 0) {
 		return;
 	}
 
@@ -2384,6 +2431,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_slots[idx].active = 0;
 		cackey_slots[idx].pcsc_reader = NULL;
 		cackey_slots[idx].transaction_depth = 0;
+		cackey_slots[idx].slot_reset = 0;
 	}
 
 	cackey_initialized = 1;
@@ -2435,6 +2483,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved) {
 			free(cackey_slots[idx].pcsc_reader);
 		}
 	}
+
+	cackey_pcsc_disconnect();
 
 	cackey_initialized = 0;
 
@@ -2573,6 +2623,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 						cackey_slots[currslot].pcsc_reader = strdup(pcsc_readers);
 						cackey_slots[currslot].pcsc_card_connected = 0;
 						cackey_slots[currslot].transaction_depth = 0;
+						cackey_slots[currslot].slot_reset = 1;
 					}
 					currslot++;
 
@@ -2620,7 +2671,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 	*pulCount = slot_count;
 
-	CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i)", CKR_OK);
+	CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i).  Found %lu readers.", CKR_OK, (unsigned long) slot_count);
 
 	return(CKR_OK);
 
@@ -3620,11 +3671,17 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		return(CKR_OPERATION_ACTIVE);
 	}
 
-	if (cackey_sessions[hSession].identities != NULL) {
-		cackey_free_identities(cackey_sessions[hSession].identities, cackey_sessions[hSession].identities_count);
+	if (cackey_slots[cackey_sessions[hSession].slotID].slot_reset) {
+		CACKEY_DEBUG_PRINTF("The slot has been reset since we last looked for identities -- rescanning");
 
-		cackey_sessions[hSession].identities = NULL;
-		cackey_sessions[hSession].identities_count = 0;
+		if (cackey_sessions[hSession].identities != NULL) {
+			cackey_free_identities(cackey_sessions[hSession].identities, cackey_sessions[hSession].identities_count);
+
+			cackey_sessions[hSession].identities = NULL;
+			cackey_sessions[hSession].identities_count = 0;
+		}
+
+		cackey_slots[cackey_sessions[hSession].slotID].slot_reset = 0;
 	}
 
 	if (cackey_sessions[hSession].identities == NULL) {
