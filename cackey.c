@@ -1374,8 +1374,10 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	size_t offset_t = 0, offset_v = 0;
 	unsigned char tag;
 	size_t length;
+#ifdef HAVE_LIBZ
 	uLongf tmpbuflen;
 	int uncompress_ret;
+#endif
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -1482,7 +1484,6 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 				tmpbuf = malloc(tmpbuflen);
 
 #ifdef HAVE_LIBZ
-				CACKEY_DEBUG_PRINTBUF("Decompressing:", vval, length);
 				uncompress_ret = uncompress(tmpbuf, &tmpbuflen, vval, length);
 				if (uncompress_ret != Z_OK) {
 					CACKEY_DEBUG_PRINTF("Failed to decompress, uncompress() returned %i -- resorting to direct copy", uncompress_ret);
@@ -2020,10 +2021,23 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				/* Determine name */
 				if (certificate_len >= 0) {
 					x509_read_ret = x509_to_subject(certificate, certificate_len, &pValue);
-					if (x509_read_ret < 0) {
-						pValue = NULL;
+					if (x509_read_ret > 0) {
+						x509_read_ret = x509_dn_to_string(pValue, x509_read_ret, (char *) ucTmpBuf, sizeof(ucTmpBuf), "CN");
+						if (x509_read_ret <= 0) {
+							x509_read_ret = x509_dn_to_string(pValue, x509_read_ret, (char *) ucTmpBuf, sizeof(ucTmpBuf), NULL);
+
+							if (x509_read_ret <= 0) {
+								pValue = NULL;
+							} else {
+								pValue = ucTmpBuf;
+								ulValueLen = x509_read_ret;
+							}
+						} else {
+							pValue = ucTmpBuf;
+							ulValueLen = x509_read_ret;
+						}
 					} else {
-						ulValueLen = x509_read_ret;
+						pValue = NULL;
 					}
 				}
 
