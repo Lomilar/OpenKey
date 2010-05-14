@@ -485,6 +485,8 @@ struct cackey_slot {
 
 	int pcsc_card_connected;
 	SCARDHANDLE pcsc_card;
+
+	int transaction_depth;
 };
 
 typedef enum {
@@ -742,6 +744,7 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 		}
 
 		slot->pcsc_card_connected = 1;
+		slot->transaction_depth = 0;
 	}
 
 	return(CACKEY_PCSC_S_OK);
@@ -776,12 +779,22 @@ static cackey_ret cackey_begin_transaction(struct cackey_slot *slot) {
 		return(CACKEY_PCSC_E_GENERIC);
 	}
 
+	slot->transaction_depth++;
+
+	if (slot->transaction_depth > 1) {
+		CACKEY_DEBUG_PRINTF("Already in a transaction, performing no action (new depth = %i)", slot->transaction_depth);
+
+		return(CACKEY_PCSC_S_OK);
+	}
+
 	scard_trans_ret = SCardBeginTransaction(slot->pcsc_card);
 	if (scard_trans_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Unable to begin transaction, returning in error");
 
 		return(CACKEY_PCSC_E_GENERIC);
 	}
+
+	CACKEY_DEBUG_PRINTF("Sucessfully began transaction on slot (%s)", slot->pcsc_reader);
 
 	return(CACKEY_PCSC_S_OK);
 }
@@ -813,12 +826,28 @@ static cackey_ret cackey_end_transaction(struct cackey_slot *slot) {
 		return(CACKEY_PCSC_E_GENERIC);
 	}
 
+	if (slot->transaction_depth == 0) {
+		CACKEY_DEBUG_PRINTF("Terminating a transaction that has not begun!");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	slot->transaction_depth--;
+
+	if (slot->transaction_depth > 0) {
+		CACKEY_DEBUG_PRINTF("Transactions still in progress, not terminating on-card Transaction (current depth = %i)", slot->transaction_depth);
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
 	scard_trans_ret = SCardEndTransaction(slot->pcsc_card, SCARD_LEAVE_CARD);
 	if (scard_trans_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Unable to end transaction, returning in error");
 
 		return(CACKEY_PCSC_E_GENERIC);
 	}
+
+	CACKEY_DEBUG_PRINTF("Sucessfully terminated transaction on slot (%s)", slot->pcsc_reader);
 
 	return(CACKEY_PCSC_S_OK);
 }
@@ -932,6 +961,9 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		xmit_buf[xmit_len++] = le;
 	}
 
+	/* Begin Smartcard Transaction */
+	cackey_begin_transaction(slot);
+
 	CACKEY_DEBUG_PRINTBUF("Sending APDU:", xmit_buf, xmit_len);
 
 	recv_len = sizeof(recv_buf);
@@ -939,11 +971,19 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 
+		slot->transaction_depth = 0;
+
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
 
 			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
+				/* Re-establish transaction, if it was present */
+				if (slot->transaction_depth > 0) {
+					slot->transaction_depth--;
+					cackey_begin_transaction(slot);
+				}
+
 				CACKEY_DEBUG_PRINTF("Reset successful, retransmitting");
 				scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T0, recv_buf, &recv_len);
 
@@ -953,6 +993,10 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 					SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
 					slot->pcsc_card_connected = 0;
 
+					/* End Smartcard Transaction */
+					slot->transaction_depth = 1;
+					cackey_end_transaction(slot);
+
 					return(CACKEY_PCSC_E_GENERIC);
 				}
 			} else {
@@ -960,6 +1004,10 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 
 				SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
 				slot->pcsc_card_connected = 0;
+
+				/* End Smartcard Transaction */
+				slot->transaction_depth = 1;
+				cackey_end_transaction(slot);
 
 				CACKEY_DEBUG_PRINTF("Returning in failure");
 				return(CACKEY_PCSC_E_GENERIC);
@@ -969,6 +1017,10 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 
 			SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
 			slot->pcsc_card_connected = 0;
+
+			/* End Smartcard Transaction */
+			slot->transaction_depth = 1;
+			cackey_end_transaction(slot);
 
 			CACKEY_DEBUG_PRINTF("Returning in failure");
 			return(CACKEY_PCSC_E_GENERIC);
@@ -980,6 +1032,9 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	if (recv_len < 2) {
 		/* Minimal response length is 2 bytes, returning in failure */
 		CACKEY_DEBUG_PRINTF("Response too small, returning in failure (recv_len = %lu)", (unsigned long) recv_len);
+
+		/* End Smartcard Transaction */
+		cackey_end_transaction(slot);
 
 		return(CACKEY_PCSC_E_GENERIC);
 	}
@@ -1026,6 +1081,9 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		if (pcsc_getresp_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("Buffer read failed!  Returning in failure");
 
+			/* End Smartcard Transaction */
+			cackey_end_transaction(slot);
+
 			return(CACKEY_PCSC_E_GENERIC);
 		}
 
@@ -1033,9 +1091,15 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 			*respdata_len += tmp_respdata_len;
 		}
 
+		/* End Smartcard Transaction */
+		cackey_end_transaction(slot);
+
 		CACKEY_DEBUG_PRINTF("Returning in success (buffer read complete)");
 		return(CACKEY_PCSC_S_OK);
 	}
+
+	/* End Smartcard Transaction */
+	cackey_end_transaction(slot);
 
 	if (major_rc == 0x90) {
 		/* Success */
@@ -1492,6 +1556,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
 	unsigned char curr_aid[7];
 	unsigned long outidx = 0;
+	cackey_ret transaction_ret;
 	int certs_resizable;
 	int send_ret, select_ret;
 
@@ -1512,7 +1577,12 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	}
 
 	/* Begin a SmartCard transaction */
-	cackey_begin_transaction(slot);
+	transaction_ret = cackey_begin_transaction(slot);
+	if (transaction_ret != CACKEY_PCSC_S_OK) {
+		CACKEY_DEBUG_PRINTF("Unable begin transaction, returning in failure");
+
+		return(NULL);
+	}
 
 	if (certs == NULL) {
 		certs = malloc(sizeof(*certs) * 5);
