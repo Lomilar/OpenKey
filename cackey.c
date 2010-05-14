@@ -1790,6 +1790,67 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  *     ...
  *
  */
+static ssize_t cackey_signdecrypt(struct cackey_slot *slot, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen) {
+	cackey_ret send_ret;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (buflen > 255) {
+		CACKEY_DEBUG_PRINTF("Error.  buflen is greater than 255 (buflen = %lu)", (unsigned long) buflen);
+
+		return(-1);
+	}
+
+	if (outbuflen > 255) {
+		CACKEY_DEBUG_PRINTF("Error.  outbuflen is grater than 255 (outbuflen = %lu)", (unsigned long) outbuflen);
+
+		return(-1);
+	}
+
+	if (slot == NULL) {
+		CACKEY_DEBUG_PRINTF("Error.  slot is NULL");
+
+		return(-1);
+	}
+
+	if (buf == NULL) {
+		CACKEY_DEBUG_PRINTF("Error.  buf is NULL");
+
+		return(-1);
+	}
+
+	if (outbuf == NULL) {
+		CACKEY_DEBUG_PRINTF("Error.  outbuf is NULL");
+
+		return(-1);
+	}
+
+	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, 0x00, 0x00, buflen, buf, outbuflen, NULL, outbuf, &outbuflen);
+	if (send_ret != CACKEY_PCSC_S_OK) {
+		CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
+
+		return(-1);
+	}
+
+	CACKEY_DEBUG_PRINTF("Returning in success.");
+
+	return(outbuflen);
+}
+
+/*
+ * SYNPOSIS
+ *     ...
+ *
+ * ARGUMENTS
+ *     ...
+ *
+ * RETURN VALUE
+ *     ...
+ *
+ * NOTES
+ *     ...
+ *
+ */
 static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, unsigned long pin_len, int *tries_remaining_p) {
 	unsigned char cac_pin[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint16_t response_code;
@@ -4202,9 +4263,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 
 	switch (cackey_sessions[hSession].decrypt_mechanism) {
 		case CKM_RSA_PKCS:
-			buflen = -1;
-
-			/* XXX: Ask card to decrypt */
+			/* Ask card to decrypt */
+			buflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf));
 
 			if (buflen < 0) {
 				/* Decryption failed. */
@@ -4635,9 +4695,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 
 	switch (cackey_sessions[hSession].sign_mechanism) {
 		case CKM_RSA_PKCS:
-			sigbuflen = -1;
-
-			/* XXX: Ask card to sign */
+			/* Ask card to sign */
+			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf));
 
 			if (sigbuflen < 0) {
 				/* Signing failed. */
