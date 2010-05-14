@@ -615,6 +615,7 @@ static void cackey_slots_disconnect_all(void) {
 		}
 
 		cackey_slots[idx].pcsc_card_connected = 0;
+		cackey_slots[idx].transaction_depth = 0;
 	}
 
 	CACKEY_DEBUG_PRINTF("Returning");
@@ -2288,6 +2289,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 	for (idx = 0; idx < (sizeof(cackey_slots) / sizeof(cackey_slots[0])); idx++) {
 		cackey_slots[idx].active = 0;
 		cackey_slots[idx].pcsc_reader = NULL;
+		cackey_slots[idx].transaction_depth = 0;
 	}
 
 	cackey_initialized = 1;
@@ -2476,6 +2478,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 						cackey_slots[currslot].active = 1;
 						cackey_slots[currslot].pcsc_reader = strdup(pcsc_readers);
 						cackey_slots[currslot].pcsc_card_connected = 0;
+						cackey_slots[currslot].transaction_depth = 0;
 					}
 					currslot++;
 
