@@ -694,6 +694,135 @@ static cackey_ret cackey_pcsc_connect(void) {
 	return(CACKEY_PCSC_S_OK);
 }
 
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_connect_card(struct cackey_slot *slot);
+ *
+ * ARGUMENTS
+ *     cackey_slot *slot
+ *         Slot to send commands to
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     None
+ *
+ */
+static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
+	cackey_ret pcsc_connect_ret;
+	DWORD protocol;
+	LONG scard_conn_ret;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (!slot) {
+		CACKEY_DEBUG_PRINTF("Invalid slot specified, returning in failure");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	pcsc_connect_ret = cackey_pcsc_connect();
+	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
+		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, returning in failure");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	/* Connect to reader, if needed */
+	if (!slot->pcsc_card_connected) {
+		CACKEY_DEBUG_PRINTF("SCardConnect(%s) called", slot->pcsc_reader);
+		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
+
+		if (scard_conn_ret != SCARD_S_SUCCESS) {
+			CACKEY_DEBUG_PRINTF("Connection to card failed, returning in failure (SCardConnect() = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_conn_ret), (long) scard_conn_ret);
+
+			return(CACKEY_PCSC_E_GENERIC);
+		}
+
+		slot->pcsc_card_connected = 1;
+	}
+
+	return(CACKEY_PCSC_S_OK);
+}
+
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_begin_transaction(struct cackey_slot *slot);
+ *
+ * ARGUMENTS
+ *     cackey_slot *slot
+ *         Slot to send commands to
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     The transaction should be terminated using "cackey_end_transaction"
+ *
+ */
+static cackey_ret cackey_begin_transaction(struct cackey_slot *slot) {
+	cackey_ret cackey_conn_ret;
+	LONG scard_trans_ret;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	cackey_conn_ret = cackey_connect_card(slot);
+	if (cackey_conn_ret != CACKEY_PCSC_S_OK) {
+		CACKEY_DEBUG_PRINTF("Unable to connect to card, returning in error");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	scard_trans_ret = SCardBeginTransaction(slot->pcsc_card);
+	if (scard_trans_ret != SCARD_S_SUCCESS) {
+		CACKEY_DEBUG_PRINTF("Unable to begin transaction, returning in error");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	return(CACKEY_PCSC_S_OK);
+}
+
+/*
+ * SYNPOSIS
+ *     cackey_ret cackey_end_transaction(struct cackey_slot *slot);
+ *
+ * ARGUMENTS
+ *     cackey_slot *slot
+ *         Slot to send commands to
+ *
+ * RETURN VALUE
+ *     CACKEY_PCSC_S_OK         On success
+ *     CACKEY_PCSC_E_GENERIC    On error
+ *
+ * NOTES
+ *     This function requires "cackey_begin_transaction" to be called first
+ *
+ */
+static cackey_ret cackey_end_transaction(struct cackey_slot *slot) {
+	LONG scard_trans_ret;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (!slot->pcsc_card_connected) {
+		CACKEY_DEBUG_PRINTF("Card is not connected, unable to end transaction");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	scard_trans_ret = SCardEndTransaction(slot->pcsc_card, SCARD_LEAVE_CARD);
+	if (scard_trans_ret != SCARD_S_SUCCESS) {
+		CACKEY_DEBUG_PRINTF("Unable to end transaction, returning in error");
+
+		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	return(CACKEY_PCSC_S_OK);
+}
+
 /* APDU Related Functions */
 /*
  * SYNPOSIS
@@ -766,7 +895,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	size_t bytes_to_copy, tmp_respdata_len;
 	DWORD protocol;
 	DWORD xmit_len, recv_len;
-	LONG scard_conn_ret, scard_xmit_ret, scard_reconn_ret;
+	LONG scard_xmit_ret, scard_reconn_ret;
 	BYTE xmit_buf[1024], recv_buf[1024];
 	int pcsc_connect_ret, pcsc_getresp_ret;
 	int idx;
@@ -779,25 +908,11 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		return(CACKEY_PCSC_E_GENERIC);
 	}
 
-	pcsc_connect_ret = cackey_pcsc_connect();
+	pcsc_connect_ret = cackey_connect_card(slot);
 	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
-		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, returning in failure");
+		CACKEY_DEBUG_PRINTF("Unable to connect to card, returning in failure");
 
 		return(CACKEY_PCSC_E_GENERIC);
-	}
-
-	/* Connect to reader, if needed */
-	if (!slot->pcsc_card_connected) {
-		CACKEY_DEBUG_PRINTF("SCardConnect(%s) called", slot->pcsc_reader);
-		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
-
-		if (scard_conn_ret != SCARD_S_SUCCESS) {
-			CACKEY_DEBUG_PRINTF("Connection to card failed, returning in failure (SCardConnect() = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_conn_ret), (long) scard_conn_ret);
-
-			return(CACKEY_PCSC_E_GENERIC);
-		}
-
-		slot->pcsc_card_connected = 1;
 	}
 
 	/* Transmit */
@@ -1396,6 +1511,9 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 		}
 	}
 
+	/* Begin a SmartCard transaction */
+	cackey_begin_transaction(slot);
+
 	if (certs == NULL) {
 		certs = malloc(sizeof(*certs) * 5);
 		*count = 5;
@@ -1408,6 +1526,9 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
 	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Unable to select CCC Applet, returning in failure");
+
+		/* Terminate SmartCard Transaction */
+		cackey_end_transaction(slot);
 
 		return(NULL);
 	}
@@ -1502,6 +1623,9 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	if (certs_resizable) {
 		certs = realloc(certs, sizeof(*certs) * (*count));
 	}
+
+	/* Terminate SmartCard Transaction */
+	cackey_end_transaction(slot);
 
 	return(certs);
 }
