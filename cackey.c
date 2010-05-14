@@ -2462,6 +2462,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo) {
 	static CK_UTF8CHAR slotDescription[] = "CACKey Slot";
+	int mutex_retval;
 	int bytes_to_copy;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -2472,22 +2473,38 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 		return(CKR_ARGUMENTS_BAD);
 	}
 
+	if (!cackey_initialized) {
+		CACKEY_DEBUG_PRINTF("Error.  Not initialized.");
+
+		return(CKR_CRYPTOKI_NOT_INITIALIZED);
+	}
+
 	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
 		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
 
 		return(CKR_SLOT_ID_INVALID);
 	}
 
+	mutex_retval = cackey_mutex_lock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
+
+		return(CKR_GENERAL_ERROR);
+	}
+
 	if (cackey_slots[slotID].active == 0) {
 		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
 
 		return(CKR_SLOT_ID_INVALID);
 	}
 
-	if (!cackey_initialized) {
-		CACKEY_DEBUG_PRINTF("Error.  Not initialized.");
+	mutex_retval = cackey_mutex_unlock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
 
-		return(CKR_CRYPTOKI_NOT_INITIALIZED);
+		return(CKR_GENERAL_ERROR);
 	}
 
 	memset(pInfo->slotDescription, ' ', sizeof(pInfo->slotDescription));
@@ -2522,6 +2539,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 	static CK_UTF8CHAR manufacturerID[] = "U.S. Government";
 	static CK_UTF8CHAR defaultLabel[] = "Unknown Token";
 	static CK_UTF8CHAR model[] = "CAC Token";
+	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -2531,28 +2549,46 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 		return(CKR_ARGUMENTS_BAD);
 	}
 
-	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
-	if (cackey_slots[slotID].active == 0) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
 	if (!cackey_initialized) {
 		CACKEY_DEBUG_PRINTF("Error.  Not initialized.");
 
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
 	}
 
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_SLOT_ID_INVALID);
+	}
+
+	mutex_retval = cackey_mutex_lock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_SLOT_ID_INVALID);
+	}
+
 	if (cackey_token_present(&cackey_slots[slotID]) != CACKEY_PCSC_S_TOKENPRESENT) {
 		CACKEY_DEBUG_PRINTF("No token is present in slotID = %lu", slotID);
 
+		cackey_mutex_unlock(cackey_biglock);
+
 		return(CKR_TOKEN_NOT_PRESENT);
+	}
+
+	mutex_retval = cackey_mutex_unlock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
+
+		return(CKR_GENERAL_ERROR);
 	}
 
 	memset(pInfo->label, ' ', sizeof(pInfo->label));
@@ -2654,19 +2690,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismInfo)(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_MECHANISM_INFO_PTR pInfo) {
+	int mutex_retval;
+
 	CACKEY_DEBUG_PRINTF("Called.");
-
-	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
-	if (cackey_slots[slotID].active == 0) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
 
 	if (pInfo == NULL) {
 		CACKEY_DEBUG_PRINTF("Error. pInfo is NULL.");
@@ -2678,6 +2704,34 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismInfo)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 		CACKEY_DEBUG_PRINTF("Error.  Not initialized.");
 
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
+	}
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_SLOT_ID_INVALID);
+	}
+
+	mutex_retval = cackey_mutex_lock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_SLOT_ID_INVALID);
+	}
+
+	mutex_retval = cackey_mutex_unlock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
+
+		return(CKR_GENERAL_ERROR);
 	}
 
 	/* XXX: This is untested, and further I'm not really sure if this is correct. */
@@ -2756,18 +2810,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
-	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
-	if (cackey_slots[slotID].active == 0) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
 	if ((flags & CKF_SERIAL_SESSION) != CKF_SERIAL_SESSION) {
 		return(CKR_SESSION_PARALLEL_NOT_SUPPORTED);
 	}
@@ -2778,11 +2820,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
 	}
 
-	/* Verify that the card is actually in the slot. */
-	if (cackey_token_present(&cackey_slots[slotID]) != CACKEY_PCSC_S_TOKENPRESENT) {
-		CACKEY_DEBUG_PRINTF("Error.  Card not present.  Returning CKR_DEVICE_REMOVED");
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
 
-		return(CKR_DEVICE_REMOVED);
+		return(CKR_SLOT_ID_INVALID);
 	}
 
 	mutex_retval = cackey_mutex_lock(cackey_biglock);
@@ -2790,6 +2831,23 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 		CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
 
 		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_SLOT_ID_INVALID);
+	}
+
+	/* Verify that the card is actually in the slot. */
+	if (cackey_token_present(&cackey_slots[slotID]) != CACKEY_PCSC_S_TOKENPRESENT) {
+		CACKEY_DEBUG_PRINTF("Error.  Card not present.  Returning CKR_DEVICE_REMOVED");
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_DEVICE_REMOVED);
 	}
 
 	for (idx = 1; idx < (sizeof(cackey_sessions) / sizeof(cackey_sessions[0])); idx++) {
@@ -2908,22 +2966,16 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(CK_SLOT_ID slotID) {
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
-	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
-	if (cackey_slots[slotID].active == 0) {
-		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
-
-		return(CKR_SLOT_ID_INVALID);
-	}
-
 	if (!cackey_initialized) {
 		CACKEY_DEBUG_PRINTF("Error.  Not initialized.");
 
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
+	}
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_SLOT_ID_INVALID);
 	}
 
 	mutex_retval = cackey_mutex_lock(cackey_biglock);
@@ -2931,6 +2983,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(CK_SLOT_ID slotID) {
 		CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
 
 		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_SLOT_ID_INVALID);
 	}
 
 	for (idx = 0; idx < (sizeof(cackey_sessions) / sizeof(cackey_sessions[0])); idx++) {
