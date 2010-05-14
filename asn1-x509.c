@@ -16,6 +16,12 @@
 #ifdef HAVE_STDARG_H
 #  include <stdarg.h>
 #endif
+#ifdef HAVE_STDIO_H
+#  include <stdio.h>
+#endif
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#endif
 
 #include "asn1-x509.h"
 
@@ -182,4 +188,131 @@ ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 	}
 
 	return(x509.serial_number.asn1rep_len);
+}
+
+/*
+ * http://www.blackberry.com/developers/docs/4.6.0api/javax/microedition/pki/Certificate.html
+ */
+static const char *_x509_objectid_to_label_string(void *buf, size_t buflen) {
+	switch (buflen) {
+		case 3:
+			if (memcmp(buf, "\x55\x04\x03", 3) == 0) {
+				return("CN");
+			}
+			if (memcmp(buf, "\x55\x04\x04", 3) == 0) {
+				return("SN");
+			}
+			if (memcmp(buf, "\x55\x04\x06", 3) == 0) {
+				return("C");
+			}
+			if (memcmp(buf, "\x55\x04\x07", 3) == 0) {
+				return("L");
+			}
+			if (memcmp(buf, "\x55\x04\x08", 3) == 0) {
+				return("ST");
+			}
+			if (memcmp(buf, "\x55\x04\x09", 3) == 0) {
+				return("STREET");
+			}
+			if (memcmp(buf, "\x55\x04\x0A", 3) == 0) {
+				return("O");
+			}
+			if (memcmp(buf, "\x55\x04\x0B", 3) == 0) {
+				return("OU");
+			}
+			break;
+		case 9:
+			if (memcmp(buf, "\x2A\x86\x48\x86\xF7\x0D\x01\x09\x01", 9) == 0) {
+				return("EmailAddress");
+			}
+			break;
+	}
+
+	return("???");
+}
+
+ssize_t x509_dn_to_string(void *asn1_der_buf, size_t asn1_der_buf_len, char *outbuf, size_t outbuf_len, char *matchlabel) {
+	struct asn1_object whole_thing, current_set, current_seq;
+	struct asn1_object label, value;
+	const char *label_str;
+	ssize_t snprintf_ret, retval;
+	char *outbuf_s;
+	int read_ret;
+	int offset;
+
+	if (outbuf == NULL) {
+		return(-1);
+	}
+
+	if (outbuf_len == 0 || asn1_der_buf_len == 0 || asn1_der_buf == NULL) {
+		return(0);
+	}
+
+	read_ret = asn1_x509_read_asn1_object(asn1_der_buf, asn1_der_buf_len, &whole_thing, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	/* Terminate string, in case no valid elements are found we still return a valid string */
+	*outbuf = '\0';
+	outbuf_s = outbuf;
+
+	offset = 0;
+	while (1) {
+		read_ret = asn1_x509_read_asn1_object(whole_thing.contents + offset, whole_thing.size - offset, &current_set, NULL);
+		if (read_ret != 0) {
+			break;
+		}
+
+		offset += current_set.size + 2;
+
+		read_ret = asn1_x509_read_asn1_object(current_set.contents, current_set.size, &current_seq, NULL);
+		if (read_ret != 0) {
+			break;
+		}
+
+		read_ret = asn1_x509_read_asn1_object(current_seq.contents, current_seq.size, &label, &value, NULL);
+
+		label_str = _x509_objectid_to_label_string(label.contents, label.size);
+
+		/* If the user requested only certain labels, exclude others */
+		if (matchlabel) {
+			if (strcmp(matchlabel, label_str) != 0) {
+				continue;
+			}
+		}
+
+		/* If the user requested only certain labels, don't include them in the reply */
+		if (matchlabel) {
+			snprintf_ret = snprintf(outbuf, outbuf_len, "%.*s, ", (unsigned int) value.size, (char *) value.contents);
+		} else {
+			snprintf_ret = snprintf(outbuf, outbuf_len, "%s=%.*s, ", label_str, (unsigned int) value.size, (char *) value.contents);
+		}
+		if (snprintf_ret < 0) {
+			break;
+		}
+
+		if (snprintf_ret > outbuf_len) {
+			snprintf_ret = outbuf_len;
+		}
+
+		outbuf += snprintf_ret;
+		outbuf_len -= snprintf_ret;
+
+		if (outbuf_len < 2) {
+			break;
+		}
+	}
+
+	retval = outbuf - outbuf_s;
+
+	/* Remove trailing ", " added by cumulative process, if found. */
+	if (retval > 2) {
+		if (outbuf_s[retval - 2] == ',') {
+			outbuf_s[retval - 2] = '\0';
+			retval -= 2;
+		}
+	}
+
+	return(retval);
 }
