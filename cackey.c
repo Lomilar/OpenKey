@@ -26,6 +26,15 @@
 #ifdef HAVE_PTHREAD_H
 #  include <pthread.h>
 #endif
+#ifdef HAVE_ZLIB_H
+#  ifdef HAVE_LIBZ
+#    include <zlib.h>
+#  endif
+#else
+#  ifdef HAVE_LIBZ
+#    undef HAVE_LIBZ
+#  endif
+#endif
 
 #define CK_PTR *
 #define CK_DEFINE_FUNCTION(returnType, name) returnType name
@@ -1365,6 +1374,8 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	size_t offset_t = 0, offset_v = 0;
 	unsigned char tag;
 	size_t length;
+	uLongf tmpbuflen;
+	int uncompress_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -1388,10 +1399,7 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 
 	CACKEY_DEBUG_PRINTF("Tag Length = %i, Value Length = %i", tlen, vlen);
 
-	tlen -= 2;
 	offset_t += 2;
-
-	vlen -= 2;
 	offset_v += 2;
 
 	if (tlen > sizeof(tval_buf)) {
@@ -1439,8 +1447,6 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 
 		CACKEY_DEBUG_PRINTF("Tag: %s (%02x)", CACKEY_DEBUG_FUNC_TAG_TO_STR(tag), (unsigned int) tag);
 		CACKEY_DEBUG_PRINTBUF("Value:", vval, length);
-		vval += length;
-		vlen -= length;
 
 		curr_entity = NULL;
 		switch (tag) {
@@ -1471,12 +1477,30 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 				break;
 			case GSCIS_TAG_CERTIFICATE:
 				curr_entity = malloc(sizeof(*curr_entity));
-				tmpbuf = malloc(length);
 
+				tmpbuflen = length * 2;
+				tmpbuf = malloc(tmpbuflen);
+
+#ifdef HAVE_LIBZ
+				CACKEY_DEBUG_PRINTBUF("Decompressing:", vval, length);
+				uncompress_ret = uncompress(tmpbuf, &tmpbuflen, vval, length);
+				if (uncompress_ret != Z_OK) {
+					CACKEY_DEBUG_PRINTF("Failed to decompress, uncompress() returned %i -- resorting to direct copy", uncompress_ret);
+
+					tmpbuflen = length;
+					memcpy(tmpbuf, vval, length);
+				}
+
+				CACKEY_DEBUG_PRINTBUF("Decompressed to:", tmpbuf, tmpbuflen);
+#else
+				CACKEY_DEBUG_PRINTF("Missing ZLIB Support, this certificate is likely useless...");
+
+				tmpbuflen = length;
 				memcpy(tmpbuf, vval, length);
+#endif
 
 				curr_entity->tag = tag;
-				curr_entity->length = length;
+				curr_entity->length = tmpbuflen;
 				curr_entity->value = tmpbuf;
 				curr_entity->_next = NULL;
 
@@ -1490,6 +1514,9 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 
 				break;
 		}
+
+		vval += length;
+		vlen -= length;
 
 		if (curr_entity != NULL) {
 			if (root == NULL) {

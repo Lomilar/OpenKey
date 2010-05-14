@@ -22,7 +22,7 @@ AC_CHECK_TOOL(AR, ar)
 AC_CHECK_TOOL(RANLIB, ranlib)
 
 dnl Check for all required headers
-AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h string.h sys/socket.h sys/types.h sys/un.h unistd.h pthread.h,,[
+AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h string.h sys/socket.h sys/types.h sys/un.h unistd.h pthread.h zlib.h,,[
 	AC_WARN([Required header missing, compilation will likely fail.])
 ], [
 #ifdef HAVE_ARPA_INET_H
@@ -61,10 +61,16 @@ AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h strin
 #ifdef HAVE_PTHREAD_H
 #  include <pthread.h>
 #endif
+#ifdef HAVE_ZLIB_H
+#  include <zlib.h>
+#endif
 ])
 
 dnl Check for PC/SC headers and libraries
 DC_PCSC
+
+dnl Check for ZLIB libraries
+AC_CHECK_LIB(z, uncompress)
 
 dnl Upate LDFLAGS to include setting the run-time linker path to the same as our compile-time linker
 DC_SYNC_RPATH
