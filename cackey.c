@@ -479,12 +479,13 @@ struct cackey_session {
 	CK_BYTE_PTR sign_buf;
 	unsigned long sign_buflen;
 	unsigned long sign_bufused;
+	struct cackey_identity *sign_identity;
 
 	int decrypt_active;
 	CK_MECHANISM_TYPE decrypt_mechanism;
 	CK_VOID_PTR decrypt_mech_parm;
 	CK_ULONG decrypt_mech_parmlen;
-
+	struct cackey_identity *decrypt_identity;
 };
 
 struct cackey_slot {
@@ -1790,7 +1791,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  *     ...
  *
  */
-static ssize_t cackey_signdecrypt(struct cackey_slot *slot, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen) {
+static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen) {
 	cackey_ret send_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -1825,12 +1826,27 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, unsigned char *buf, 
 		return(-1);
 	}
 
+	/* Begin transaction */
+	cackey_begin_transaction(slot);
+
+	/* Select correct applet */
+	cackey_select_applet(slot, identity->identity->applet, sizeof(identity->identity->applet));
+
+	/* Select correct file */
+	cackey_select_file(slot, identity->identity->file);
+
 	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, 0x00, 0x00, buflen, buf, outbuflen, NULL, outbuf, &outbuflen);
 	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
 
+		/* End transaction */
+		cackey_end_transaction(slot);
+
 		return(-1);
 	}
+
+	/* End transaction */
+	cackey_end_transaction(slot);
 
 	CACKEY_DEBUG_PRINTF("Returning in success.");
 
@@ -4124,7 +4140,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptInit)(CK_SESSION_HANDLE hSession, CK_MECHANIS
 	if (hKey >= cackey_sessions[hSession].identities_count) {
 		cackey_mutex_unlock(cackey_biglock);
 
-		CACKEY_DEBUG_PRINTF("Error.  Key handle out of range.");
+		CACKEY_DEBUG_PRINTF("Error.  Key handle out of range (requested key %lu, only %lu identities available).", (unsigned long) hKey, (unsigned long) cackey_sessions[hSession].identities_count);
 
 		return(CKR_KEY_HANDLE_INVALID);
 	}
@@ -4134,6 +4150,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptInit)(CK_SESSION_HANDLE hSession, CK_MECHANIS
 	cackey_sessions[hSession].decrypt_mechanism = pMechanism->mechanism;
 	cackey_sessions[hSession].decrypt_mech_parm = pMechanism->pParameter;
 	cackey_sessions[hSession].decrypt_mech_parmlen = pMechanism->ulParameterLen;
+	cackey_sessions[hSession].decrypt_identity = &cackey_sessions[hSession].identities[hKey];
 
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
 	if (mutex_retval != 0) {
@@ -4264,7 +4281,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 	switch (cackey_sessions[hSession].decrypt_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to decrypt */
-			buflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf));
+			buflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf));
 
 			if (buflen < 0) {
 				/* Decryption failed. */
@@ -4493,7 +4510,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 	if (hKey >= cackey_sessions[hSession].identities_count) {
 		cackey_mutex_unlock(cackey_biglock);
 
-		CACKEY_DEBUG_PRINTF("Error.  Key handle out of range.");
+		CACKEY_DEBUG_PRINTF("Error.  Key handle out of range (requested key %lu, only %lu identities available).", (unsigned long) hKey, (unsigned long) cackey_sessions[hSession].identities_count);
 
 		return(CKR_KEY_HANDLE_INVALID);
 	}
@@ -4505,6 +4522,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 	cackey_sessions[hSession].sign_buflen = 128;
 	cackey_sessions[hSession].sign_bufused = 0;
 	cackey_sessions[hSession].sign_buf = malloc(sizeof(*cackey_sessions[hSession].sign_buf) * cackey_sessions[hSession].sign_buflen);
+	cackey_sessions[hSession].sign_identity = &cackey_sessions[hSession].identities[hKey];
 
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
 	if (mutex_retval != 0) {
@@ -4696,7 +4714,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 	switch (cackey_sessions[hSession].sign_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to sign */
-			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf));
+			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf));
 
 			if (sigbuflen < 0) {
 				/* Signing failed. */
