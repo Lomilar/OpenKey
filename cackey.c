@@ -159,33 +159,45 @@
 #    include <stdio.h>
 #  endif
 
-#  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s(): ", __func__); fprintf(stderr, x); fprintf(stderr, "\n"); }
-#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s(): %s  (%s/%lu = {%02x", __func__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); }
-#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s(): ", __func__); perror(x); }
+#  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); }
+#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); }
+#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); perror(x); }
 #  define free(x) { CACKEY_DEBUG_PRINTF("FREE(%p) (%s)", x, #x); free(x); }
 
-static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func) {
+static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
 	void *retval;
 
 	retval = malloc(size);
 
-	fprintf(stderr, "%s(): ", func);
+	fprintf(stderr, "%s():%i: ", func, line);
 	fprintf(stderr, "MALLOC() = %p", retval);
 	fprintf(stderr, "\n");
 
 	return(retval);
 }
 
-static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func) {
+static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func, int line) {
 	void *retval;
 
 	retval = realloc(ptr, size);
 
 	if (retval != ptr) {
-		fprintf(stderr, "%s(): ", func);
+		fprintf(stderr, "%s():%i: ", func, line);
 		fprintf(stderr, "REALLOC(%p) = %p", ptr, retval);
 		fprintf(stderr, "\n");
 	}
+
+	return(retval);
+}
+
+static char *CACKEY_DEBUG_FUNC_STRDUP(const char *ptr, const char *func, int line) {
+	char *retval;
+
+	retval = strdup(ptr);
+
+	fprintf(stderr, "%s():%i: ", func, line);
+	fprintf(stderr, "STRDUP_MALLOC() = %p", retval);
+	fprintf(stderr, "\n");
 
 	return(retval);
 }
@@ -426,8 +438,12 @@ static const char *CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(uint8_t apptype) {
 	return("INVALID");
 }
 
-#  define malloc(x) CACKEY_DEBUG_FUNC_MALLOC(x, __func__)
-#  define realloc(x, y) CACKEY_DEBUG_FUNC_REALLOC(x, y, __func__)
+#  define malloc(x) CACKEY_DEBUG_FUNC_MALLOC(x, __func__, __LINE__)
+#  define realloc(x, y) CACKEY_DEBUG_FUNC_REALLOC(x, y, __func__, __LINE__)
+#  ifdef strdup
+#    undef strdup
+#  endif
+#  define strdup(x) CACKEY_DEBUG_FUNC_STRDUP(x, __func__, __LINE__)
 #else
 #  define CACKEY_DEBUG_PRINTF(x...) /**/
 #  define CACKEY_DEBUG_PRINTBUF(f, x, y) /**/
