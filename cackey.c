@@ -1036,7 +1036,11 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	/* Begin Smartcard Transaction */
 	cackey_begin_transaction(slot);
 
-	CACKEY_DEBUG_PRINTBUF("Sending APDU:", xmit_buf, xmit_len);
+	if (class == GSCIS_CLASS_ISO7816 && instruction == GSCIS_INSTR_VERIFY && p1 == 0x00 && p2 == 0x00) {
+		CACKEY_DEBUG_PRINTF("Sending APDU: <<censored>>");
+	} else {
+		CACKEY_DEBUG_PRINTBUF("Sending APDU:", xmit_buf, xmit_len);
+	}
 
 	recv_len = sizeof(recv_buf);
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
