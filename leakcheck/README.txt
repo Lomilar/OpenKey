@@ -14,3 +14,6 @@ Sample usage:
 
 (Note that the leak from cackey_mutex_create() is normal -- there's no safe way
 to clean up that mutex)
+
+This functionality exists to check for leaks in libcackey independently of
+dependent libraries, and the application hosting the library.
