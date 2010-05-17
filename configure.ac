@@ -78,6 +78,9 @@ DC_PCSC
 dnl Check for ZLIB libraries
 AC_CHECK_LIB(z, uncompress)
 
+dnl Set version script, to limit the scope of symbols
+DC_SETVERSIONSCRIPT(libcackey.vers)
+
 dnl Upate LDFLAGS to include setting the run-time linker path to the same as our compile-time linker
 DC_SYNC_RPATH
 
