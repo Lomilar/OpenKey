@@ -16,6 +16,8 @@ ssize_t x509_to_issuer(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 
 ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf);
 
+ssize_t x509_to_keysize(void *x509_der_buf, size_t x509_der_buf_len);
+
 ssize_t x509_dn_to_string(void *asn1_der_buf, size_t asn1_der_buf_len, char *outbuf, size_t outbuf_len, char *matchlabel);
 
 #endif

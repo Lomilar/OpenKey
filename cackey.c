@@ -465,6 +465,8 @@ struct cackey_pcsc_identity {
 
 	size_t certificate_len;
 	unsigned char *certificate;
+
+	ssize_t keysize;
 };
 
 struct cackey_identity {
@@ -1778,6 +1780,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 			memcpy(curr_id->applet, curr_aid, sizeof(curr_id->applet));
 			curr_id->file = ccc_curr->value_cardurl->objectid;
 			curr_id->label = NULL;
+			curr_id->keysize = -1;
 
 			CACKEY_DEBUG_PRINTF("Filling curr_id->applet (%p) with %lu bytes:", curr_id->applet, (unsigned long) sizeof(curr_id->applet));
 			CACKEY_DEBUG_PRINTBUF("VAL:", curr_id->applet, sizeof(curr_id->applet));
@@ -1833,7 +1836,11 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  *
  */
 static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen) {
+	unsigned char *tmpbuf, *tmpbuf_s;
+	unsigned char bytes_to_send, p1;
 	cackey_ret send_ret;
+	size_t tmpbuflen, padlen;
+	int free_tmpbuf = 0;
 	int le;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -1880,6 +1887,46 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 		return(-1);
 	}
 
+	/* Determine identity Key size */
+	if (identity->pcsc_identity->keysize < 0) {
+		identity->pcsc_identity->keysize = x509_to_keysize(identity->pcsc_identity->certificate, identity->pcsc_identity->certificate_len);
+	}
+
+	/* Pad message to key size */
+	if (identity->pcsc_identity->keysize > 0) {
+		if (buflen != identity->pcsc_identity->keysize) {
+			if (buflen > (identity->pcsc_identity->keysize + 3)) {
+				CACKEY_DEBUG_PRINTF("Error.  Message is too large to sign/decrypt");
+
+				return(-1);
+			}
+
+			tmpbuflen = identity->pcsc_identity->keysize;
+			tmpbuf = malloc(tmpbuflen);
+			free_tmpbuf = 1;
+
+			padlen = tmpbuflen - buflen - 3;
+
+			tmpbuf[0] = 0x00;
+			tmpbuf[1] = 0x01;
+			memset(&tmpbuf[2], 0xFF, padlen);
+			tmpbuf[padlen]= 0x00;
+			memcpy(&tmpbuf[padlen + 1], buf, buflen);
+		} else {
+			tmpbuf = buf;
+			tmpbuflen = buflen;
+			free_tmpbuf = 0;
+			padlen = 0;
+		}
+	} else {
+		CACKEY_DEBUG_PRINTF("Unable to determine key size, hoping the message is properly padded!");
+
+		tmpbuf = buf;
+		tmpbuflen = buflen;
+		free_tmpbuf = 0;
+		padlen = 0;
+	}
+
 	/* Begin transaction */
 	cackey_begin_transaction(slot);
 
@@ -1890,14 +1937,40 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	/* Select correct file */
 	cackey_select_file(slot, identity->pcsc_identity->file);
 
-	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, 0x00, 0x00, buflen, buf, le, NULL, outbuf, &outbuflen);
-	if (send_ret != CACKEY_PCSC_S_OK) {
-		CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
+	tmpbuf_s = tmpbuf;
+	while (tmpbuflen) {
+		if (tmpbuflen > 245) {
+			bytes_to_send = 245;
+			p1 = 0x80;
+		} else {
+			bytes_to_send = tmpbuflen;
+			p1 = 0x00;
+		}
 
-		/* End transaction */
-		cackey_end_transaction(slot);
+		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, p1, 0x00, bytes_to_send, tmpbuf, le, NULL, outbuf, &outbuflen);
+		if (send_ret != CACKEY_PCSC_S_OK) {
+			CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
 
-		return(-1);
+			if (free_tmpbuf) {
+				if (tmpbuf_s) {
+					free(tmpbuf_s);
+				}
+			}
+
+			/* End transaction */
+			cackey_end_transaction(slot);
+
+			return(-1);
+		}
+
+		tmpbuf += bytes_to_send;
+		tmpbuflen -= bytes_to_send;
+	}
+
+	if (free_tmpbuf) {
+		if (tmpbuf_s) {
+			free(tmpbuf_s);
+		}
 	}
 
 	/* End transaction */
@@ -2942,7 +3015,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 	}
 	memcpy(pInfo->manufacturerID, cackey_slots[slotID].pcsc_reader, bytes_to_copy);
 
-	pInfo->flags = CKF_REMOVABLE_DEVICE;
+	pInfo->flags = CKF_REMOVABLE_DEVICE | CKF_HW_SLOT;
 
 	if (cackey_token_present(&cackey_slots[slotID]) == CACKEY_PCSC_S_TOKENPRESENT) {
 		pInfo->flags |= CKF_TOKEN_PRESENT;

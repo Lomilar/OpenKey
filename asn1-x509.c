@@ -43,7 +43,11 @@ struct x509_object {
 			struct asn1_object issuer;
 			struct asn1_object validity;
 			struct asn1_object subject;
-		struct asn1_object signature;
+			struct asn1_object pubkeyinfo;
+				struct asn1_object pubkey_algoid;
+					struct asn1_object pubkey_algo;
+					struct asn1_object pubkey_algoparm;
+				struct asn1_object pubkey;
 };
 
 static int _asn1_x509_read_asn1_object(unsigned char *buf, size_t buflen, va_list *args) {
@@ -68,6 +72,11 @@ static int _asn1_x509_read_asn1_object(unsigned char *buf, size_t buflen, va_lis
 	buflen--;
 	if (buflen == 0) {
 		return(-1);
+	}
+
+	/* NULL Tag -- no size is required */
+	if (outbuf->tag == 0x00) {
+		return(_asn1_x509_read_asn1_object(buf_p, buflen, args));
 	}
 
 	small_object_size = *buf_p;
@@ -134,7 +143,12 @@ static int asn1_x509_read_object(unsigned char *buf, size_t buflen, struct x509_
 		return(-1);
 	}
 
-	read_ret = asn1_x509_read_asn1_object(outbuf->certificate.contents, outbuf->certificate.size, &outbuf->version, &outbuf->serial_number, &outbuf->signature_algo, &outbuf->issuer, &outbuf->validity, &outbuf->subject, NULL);
+	read_ret = asn1_x509_read_asn1_object(outbuf->certificate.contents, outbuf->certificate.size, &outbuf->version, &outbuf->serial_number, &outbuf->signature_algo, &outbuf->issuer, &outbuf->validity, &outbuf->subject, &outbuf->pubkeyinfo, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	read_ret = asn1_x509_read_asn1_object(outbuf->pubkeyinfo.contents, outbuf->pubkeyinfo.size, &outbuf->pubkey_algoid, &outbuf->pubkey, NULL);
 	if (read_ret != 0) {
 		return(-1);
 	}
@@ -188,6 +202,30 @@ ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 	}
 
 	return(x509.serial_number.asn1rep_len);
+}
+
+ssize_t x509_to_keysize(void *x509_der_buf, size_t x509_der_buf_len) {
+	struct asn1_object null, pubkey, modulus, exponent;
+	struct x509_object x509;
+	int read_ret;
+
+	read_ret = asn1_x509_read_object(x509_der_buf, x509_der_buf_len, &x509);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	/* The structure of "pubkey" is specified in PKCS #1 */
+	read_ret = asn1_x509_read_asn1_object(x509.pubkey.contents, x509.pubkey.size, &null, &pubkey, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	read_ret = asn1_x509_read_asn1_object(pubkey.contents, pubkey.size, &modulus, &exponent, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	return(modulus.size - 1);
 }
 
 /*
