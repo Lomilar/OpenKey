@@ -29,10 +29,9 @@ cat "${TMPFILE}" | while read op addr newaddr; do
 				else
 					alloclist="${alloclist} !${addr}"
 				fi
-
-				continue
+			else
+				alloclist="$(echo " ${alloclist} " | sed "s@ ${addr} @ @;s@^  *@@;s@  *\$@@")"
 			fi
-			alloclist="$(echo " ${alloclist} " | sed "s@ ${addr} @ @;s@^  *@@;s@  *\$@@")"
 			;;
 		realloc)
 			alloclist="$(echo " ${alloclist} " | sed "s@ ${addr} @ ${newaddr} @;s@^  *@@;s@  *\$@@")"
