@@ -1839,6 +1839,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	unsigned char *tmpbuf, *tmpbuf_s;
 	unsigned char bytes_to_send, p1;
 	cackey_ret send_ret;
+	uint16_t respcode;
 	size_t tmpbuflen, padlen;
 	int free_tmpbuf = 0;
 	int le;
@@ -1910,8 +1911,11 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 			tmpbuf[0] = 0x00;
 			tmpbuf[1] = 0x01;
 			memset(&tmpbuf[2], 0xFF, padlen);
-			tmpbuf[padlen]= 0x00;
-			memcpy(&tmpbuf[padlen + 1], buf, buflen);
+			tmpbuf[padlen + 2]= 0x00;
+			memcpy(&tmpbuf[padlen + 3], buf, buflen);
+
+			CACKEY_DEBUG_PRINTBUF("Unpadded:", buf, buflen);
+			CACKEY_DEBUG_PRINTBUF("Padded:", tmpbuf, tmpbuflen);
 		} else {
 			tmpbuf = buf;
 			tmpbuflen = buflen;
@@ -1947,9 +1951,13 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 			p1 = 0x00;
 		}
 
-		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, p1, 0x00, bytes_to_send, tmpbuf, le, NULL, outbuf, &outbuflen);
+		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, p1, 0x00, bytes_to_send, tmpbuf, le, &respcode, outbuf, &outbuflen);
 		if (send_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
+
+			if (respcode == 0x6982) {
+				CACKEY_DEBUG_PRINTF("Security status not satisified.");
+			}
 
 			if (free_tmpbuf) {
 				if (tmpbuf_s) {
