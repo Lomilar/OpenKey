@@ -2942,7 +2942,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 	}
 	memcpy(pInfo->manufacturerID, cackey_slots[slotID].pcsc_reader, bytes_to_copy);
 
-	pInfo->flags = 0;
+	pInfo->flags = CKF_REMOVABLE_DEVICE;
 
 	if (cackey_token_present(&cackey_slots[slotID]) == CACKEY_PCSC_S_TOKENPRESENT) {
 		pInfo->flags |= CKF_TOKEN_PRESENT;
