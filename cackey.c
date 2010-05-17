@@ -1165,6 +1165,12 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		/* We need to READ */
 		CACKEY_DEBUG_PRINTF("Buffer read required");
 
+		if (minor_rc == 0x00) {
+			CACKEY_DEBUG_PRINTF("Read of 0 bytes is a no-op, returning in success.");
+
+			return(CACKEY_PCSC_S_OK);
+		}
+
 		pcsc_getresp_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_GET_RESPONSE, 0x00, 0x00, 0, NULL, minor_rc, respcode, respdata, &tmp_respdata_len);
 		if (pcsc_getresp_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("Buffer read failed!  Returning in failure");
