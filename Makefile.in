@@ -18,10 +18,10 @@ libdir = @libdir@
 
 all: libcackey.@SHOBJEXT@
 
-cackey.o: cackey.c asn1-x509.h
+cackey.o: cackey.c asn1-x509.h config.h
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o cackey.o -c cackey.c
 
-asn1-x509.o: asn1-x509.c asn1-x509.h
+asn1-x509.o: asn1-x509.c asn1-x509.h config.h
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o asn1-x509.o -c asn1-x509.c
 
 libcackey.@SHOBJEXT@: cackey.o asn1-x509.o
@@ -29,6 +29,9 @@ libcackey.@SHOBJEXT@: cackey.o asn1-x509.o
 
 test: test.c libcackey.@SHOBJEXT@
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey.@SHOBJEXT@
+
+splint-cackey.txt: cackey.c asn1-x509.c asn1-x509.h config.h
+	splint $(CPPFLAGS) -weak +posixlib -I/usr/include/PCSC -Ipkcs11 cackey.c > splint-cackey.txt
 
 install: libcackey.@SHOBJEXT@
 	-mkdir "$(DESTDIR)$(libdir)"
@@ -38,6 +41,7 @@ clean:
 	rm -f libcackey.@SHOBJEXT@
 	rm -f cackey.o asn1-x509.o
 	rm -f test
+	rm -f splint-cackey.txt
 
 distclean: clean
 	rm -f config.log config.status config.h Makefile
