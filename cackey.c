@@ -26,6 +26,9 @@
 #ifdef HAVE_PTHREAD_H
 #  include <pthread.h>
 #endif
+#ifdef HAVE_LIMITS_H
+#  include <limits.h>
+#endif
 #ifdef HAVE_ZLIB_H
 #  ifdef HAVE_LIBZ
 #    include <zlib.h>
@@ -697,6 +700,7 @@ static cackey_ret cackey_pcsc_connect(void) {
 			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %s/%li), returning in failure", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_est_context_ret), (long) scard_est_context_ret);
 
 			free(cackey_pcsc_handle);
+			cackey_pcsc_handle = NULL;
 
 			cackey_slots_disconnect_all();
 
@@ -716,6 +720,7 @@ static cackey_ret cackey_pcsc_connect(void) {
 			CACKEY_DEBUG_PRINTF("Call to SCardEstablishContext failed (returned %s/%li), returning in failure", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_est_context_ret), (long) scard_est_context_ret);
 
 			free(cackey_pcsc_handle);
+			cackey_pcsc_handle = NULL;
 
 			cackey_slots_disconnect_all();
 
@@ -758,8 +763,11 @@ static cackey_ret cackey_pcsc_disconnect(void) {
 
 	scard_rel_context_ret = SCardReleaseContext(*cackey_pcsc_handle);
 
-	free(cackey_pcsc_handle);
-	cackey_pcsc_handle = NULL;
+	if (cackey_pcsc_handle) {
+		free(cackey_pcsc_handle);
+	
+		cackey_pcsc_handle = NULL;
+	}
 
 	if (scard_rel_context_ret != SCARD_S_SUCCESS) {
 		return(CACKEY_PCSC_E_GENERIC);
@@ -1273,11 +1281,21 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 		offset += count;
 
 		if (count < max_count) {
-			CACKEY_DEBUG_PRINTF("Short read -- count = %i, cmd[1] = %i", count, cmd[1]);
+			CACKEY_DEBUG_PRINTF("Short read -- count = %i, cmd[1] = %i", (int) count, (int) cmd[1]);
 
 			break;
 		}
 	}
+
+#ifdef CACKEY_PARANOID
+#  ifdef _POSIX_SSIZE_MAX
+	if (offset > _POSIX_SSIZE_MAX) {
+		CACKEY_DEBUG_PRINTF("Offset exceeds maximum value, returning in failure. (max = %li, offset = %lu)", (long) _POSIX_SSIZE_MAX, (unsigned long) offset);
+
+		return(-1);
+	}
+#  endif
+#endif
 
 	CACKEY_DEBUG_PRINTF("Returning in success, read %lu bytes", (unsigned long) offset);
 
@@ -1873,6 +1891,16 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	/* End transaction */
 	cackey_end_transaction(slot);
 
+#ifdef CACKEY_PARANOID
+#  ifdef _POSIX_SSIZE_MAX
+	if (outbuflen > _POSIX_SSIZE_MAX) {
+		CACKEY_DEBUG_PRINTF("Outbuflen exceeds maximum value, returning in failure. (max = %li, outbuflen = %lu)", (long) _POSIX_SSIZE_MAX, (unsigned long) outbuflen);
+
+		return(-1);
+	}
+#  endif
+#endif
+
 	CACKEY_DEBUG_PRINTF("Returning in success.");
 
 	return(outbuflen);
@@ -2006,6 +2034,16 @@ static ssize_t cackey_pcsc_identity_to_label(struct cackey_pcsc_identity *identi
 			return(-1);
 		}
 	}
+
+#ifdef CACKEY_PARANOID
+#  ifdef _POSIX_SSIZE_MAX
+	if (x509_read_ret > _POSIX_SSIZE_MAX) {
+		CACKEY_DEBUG_PRINTF("x509_read_ret exceeds maximum value, returning in failure. (max = %li, x509_read_ret = %lu)", (long) _POSIX_SSIZE_MAX, (unsigned long) x509_read_ret);
+
+		return(-1);
+	}
+#  endif
+#endif
 
 	return(x509_read_ret);
 }
