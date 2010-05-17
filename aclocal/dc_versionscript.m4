@@ -5,14 +5,20 @@ AC_DEFUN(DC_SETVERSIONSCRIPT, [
 
 	AC_MSG_CHECKING([for how to set version script])
 
-	for addldflags in "-Wl,--version-script -Wl,${VERSIONSCRIPT}"; do
-		LDFLAGS="${SAVE_LDFLAGS} ${addldflags}"
+	for tryaddldflags in "-Wl,--version-script -Wl,${VERSIONSCRIPT}"; do
+		LDFLAGS="${SAVE_LDFLAGS} ${tryaddldflags}"
 		AC_TRY_LINK([], [], [
-			AC_MSG_RESULT($addldflags)
-		], [
-			AC_MSG_RESULT([don't know])
+			addldflags="${tryaddldflags}"
 
-			LDFLAGS="${SAVE_LDFLAGS}"
+			break
 		])
 	done
+
+	if test -n "${addldflags}"; then
+		LDFLAGS="${SAVE_LDFLAGS} ${addldflags}"
+		AC_MSG_RESULT($addldflags)
+	else
+		LDFLAGS="${SAVE_LDFLAGS}"
+		AC_MSG_RESULT([don't know])
+	fi
 ])
