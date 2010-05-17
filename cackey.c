@@ -1148,7 +1148,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 			bytes_to_copy = recv_len;
 		}
 
-		CACKEY_DEBUG_PRINTF("Copying %lu bytes to the buffer", (unsigned long) bytes_to_copy);
+		CACKEY_DEBUG_PRINTF("Copying %lu bytes to the buffer (recv'd %lu bytes, but only %lu bytes left in our buffer)", (unsigned long) bytes_to_copy, (unsigned long) recv_len, (unsigned long) *respdata_len);
 
 		memcpy(respdata, recv_buf, bytes_to_copy);
 		respdata += bytes_to_copy;
@@ -1164,6 +1164,10 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	if (major_rc == 0x61) {
 		/* We need to READ */
 		CACKEY_DEBUG_PRINTF("Buffer read required");
+
+		if (minor_rc == 0x00) {
+			minor_rc = 253;
+		}
 
 		pcsc_getresp_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_GET_RESPONSE, 0x00, 0x00, 0, NULL, minor_rc, respcode, respdata, &tmp_respdata_len);
 		if (pcsc_getresp_ret != CACKEY_PCSC_S_OK) {
