@@ -4994,7 +4994,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 	switch (cackey_sessions[hSession].sign_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to sign */
-			CACKEY_DEBUG_PRINTF("Asking to decrypt from identity %p in session %lu", cackey_sessions[hSession].sign_identity, (unsigned long) hSession);
+			CACKEY_DEBUG_PRINTF("Asking to sign from identity %p in session %lu", cackey_sessions[hSession].sign_identity, (unsigned long) hSession);
 			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf), 1, 0);
 
 			if (sigbuflen < 0) {
@@ -5002,6 +5002,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 				retval = CKR_GENERAL_ERROR;
 			} else if (((unsigned long) sigbuflen) > *pulSignatureLen && pSignature) {
 				/* Signed data too large */
+				CACKEY_DEBUG_PRINTF("retval = CKR_BUFFER_TOO_SMALL;  sigbuflen = %lu, pulSignatureLen = %lu", (unsigned long) sigbuflen, (unsigned long) *pulSignatureLen);
+
 				retval = CKR_BUFFER_TOO_SMALL;
 
 				terminate_sign = 0;
