@@ -1839,14 +1839,15 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  *     ...
  *
  */
-static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen) {
+static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen, int padInput, int unpadOutput) {
 	unsigned char *tmpbuf, *tmpbuf_s;
 	unsigned char bytes_to_send, p1;
+	unsigned char blocktype;
 	cackey_ret send_ret;
 	uint16_t respcode;
-	ssize_t retval;
+	ssize_t retval = 0, unpadoffset;
 	size_t tmpbuflen, padlen, tmpoutbuflen;
-	int free_tmpbuf = 0;
+	int free_tmpbuf = 0, sepByte = -1;
 	int le;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -1893,37 +1894,44 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	}
 
 	/* Pad message to key size */
-	if (identity->pcsc_identity->keysize > 0) {
-		if (buflen != identity->pcsc_identity->keysize) {
-			if (buflen > (identity->pcsc_identity->keysize + 3)) {
-				CACKEY_DEBUG_PRINTF("Error.  Message is too large to sign/decrypt");
+	if (padInput) {
+		if (identity->pcsc_identity->keysize > 0) {
+			if (buflen != identity->pcsc_identity->keysize) {
+				if (buflen > (identity->pcsc_identity->keysize + 3)) {
+					CACKEY_DEBUG_PRINTF("Error.  Message is too large to sign/decrypt");
 
-				return(-1);
+					return(-1);
+				}
+
+				tmpbuflen = identity->pcsc_identity->keysize;
+				tmpbuf = malloc(tmpbuflen);
+				free_tmpbuf = 1;
+
+				padlen = tmpbuflen - buflen - 3;
+
+				tmpbuf[0] = 0x00;
+				tmpbuf[1] = 0x01;
+				memset(&tmpbuf[2], 0xFF, padlen);
+				tmpbuf[padlen + 2]= 0x00;
+				memcpy(&tmpbuf[padlen + 3], buf, buflen);
+
+				CACKEY_DEBUG_PRINTBUF("Unpadded:", buf, buflen);
+				CACKEY_DEBUG_PRINTBUF("Padded:", tmpbuf, tmpbuflen);
+			} else {
+				tmpbuf = buf;
+				tmpbuflen = buflen;
+				free_tmpbuf = 0;
+				padlen = 0;
 			}
-
-			tmpbuflen = identity->pcsc_identity->keysize;
-			tmpbuf = malloc(tmpbuflen);
-			free_tmpbuf = 1;
-
-			padlen = tmpbuflen - buflen - 3;
-
-			tmpbuf[0] = 0x00;
-			tmpbuf[1] = 0x01;
-			memset(&tmpbuf[2], 0xFF, padlen);
-			tmpbuf[padlen + 2]= 0x00;
-			memcpy(&tmpbuf[padlen + 3], buf, buflen);
-
-			CACKEY_DEBUG_PRINTBUF("Unpadded:", buf, buflen);
-			CACKEY_DEBUG_PRINTBUF("Padded:", tmpbuf, tmpbuflen);
 		} else {
+			CACKEY_DEBUG_PRINTF("Unable to determine key size, hoping the message is properly padded!");
+
 			tmpbuf = buf;
 			tmpbuflen = buflen;
 			free_tmpbuf = 0;
 			padlen = 0;
 		}
 	} else {
-		CACKEY_DEBUG_PRINTF("Unable to determine key size, hoping the message is properly padded!");
-
 		tmpbuf = buf;
 		tmpbuflen = buflen;
 		free_tmpbuf = 0;
@@ -2001,7 +2009,84 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 #  endif
 #endif
 
-	CACKEY_DEBUG_PRINTF("Returning in success.");
+	/* Unpad reply */
+	if (unpadOutput) {
+		if (retval < 2) {
+			CACKEY_DEBUG_PRINTF("Reply is too small, we are not able to unpad -- passing back and hoping for the best!");
+
+			return(retval);
+		}
+
+		blocktype = outbuf[0];
+		unpadoffset = 0;
+
+		switch (blocktype) {
+			case 0x00:
+				/* Padding Scheme 1, the first non-zero byte is the start of data */
+				for (unpadoffset = 1; unpadoffset < retval; unpadoffset++) {
+					if (outbuf[unpadoffset] != 0x00) {
+						break;
+					}
+				}
+				break;
+			case 0x01:
+				/* Padding Scheme 2, pad bytes are 0xFF followed by 0x00 */
+				for (unpadoffset = 1; unpadoffset < retval; unpadoffset++) {
+					if (outbuf[unpadoffset] != 0xFF) {
+						if (outbuf[unpadoffset] == 0x00) {
+							unpadoffset++;
+
+							break;
+						} else {
+							CACKEY_DEBUG_PRINTF("Invalid padding data found, returning in failure, should have been 0x00 found 0x%02x", (unsigned int) outbuf[unpadoffset]);
+
+							return(-1);
+						}
+					} else {
+						CACKEY_DEBUG_PRINTF("Invalid padding data found, returning in failure, should have been 0xFF found 0x%02x", (unsigned int) outbuf[unpadoffset]);
+
+						return(-1);
+					}
+				}
+				break;
+			case 0x02:
+				/* Padding Scheme 3, pad bytes are non-zero first non-zero byte found is the pad byte */
+				for (unpadoffset = 1; unpadoffset < retval; unpadoffset++) {
+					if (outbuf[unpadoffset] == 0x00) {
+						continue;
+					}
+
+					if (sepByte == -1) {
+						sepByte = outbuf[unpadoffset];
+
+						continue;
+					}
+
+					if (outbuf[unpadoffset] == sepByte) {
+						unpadoffset++;
+
+						break;
+					}
+				}
+				break;
+		}
+
+		if (unpadoffset > retval) {
+			CACKEY_DEBUG_PRINTF("Offset greater than reply size, aborting.  (unpadoffset = %lu, retval = %lu)", (unsigned long) unpadoffset, (unsigned long) retval);
+
+			return(-1);
+		}
+
+		CACKEY_DEBUG_PRINTBUF("Padded:", outbuf, retval);
+
+		retval -= unpadoffset;
+		memmove(outbuf + unpadoffset, outbuf, retval);
+
+		CACKEY_DEBUG_PRINTBUF("Unpadded:", outbuf, retval);
+	}
+
+
+	CACKEY_DEBUG_PRINTF("Returning in success, signed %li bytes", (long) retval);
 
 	return(retval);
 }
@@ -4474,7 +4559,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 	switch (cackey_sessions[hSession].decrypt_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to decrypt */
-			buflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf));
+			buflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf), 0, 1);
 
 			if (buflen < 0) {
 				/* Decryption failed. */
@@ -4910,7 +4995,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 		case CKM_RSA_PKCS:
 			/* Ask card to sign */
 			CACKEY_DEBUG_PRINTF("Asking to decrypt from identity %p in session %lu", cackey_sessions[hSession].sign_identity, (unsigned long) hSession);
-			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf));
+			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf), 1, 0);
 
 			if (sigbuflen < 0) {
 				/* Signing failed. */
