@@ -9,6 +9,7 @@ SHOBJFLAGS = @SHOBJFLAGS@
 SHOBJLDFLAGS = @SHOBJLDFLAGS@
 AR = @AR@
 RANLIB = @RANLIB@
+STRIP = @STRIP@
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 libdir = @libdir@
@@ -32,6 +33,7 @@ asn1-x509_g.o: asn1-x509.c asn1-x509.h config.h
 
 libcackey.@SHOBJEXT@: cackey.o asn1-x509.o
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey.@SHOBJEXT@ cackey.o asn1-x509.o $(LIBS)
+	-$(STRIP) -g "libcackey.@SHOBJEXT@"
 
 libcackey_g.@SHOBJEXT@: cackey_g.o asn1-x509_g.o
 	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey_g.@SHOBJEXT@ cackey_g.o asn1-x509_g.o $(LIBS)
@@ -44,8 +46,8 @@ splint-cackey.txt: cackey.c asn1-x509.c asn1-x509.h config.h
 
 install: libcackey.@SHOBJEXT@
 	-mkdir "$(DESTDIR)$(libdir)"
-	cp libcackey.@SHOBJEXT@ "$(DESTDIR)$(libdir)/"
-	-cp libcackey_g.@SHOBJEXT@ "$(DESTDIR)$(libdir)/"
+	cp "libcackey.@SHOBJEXT@" "$(DESTDIR)$(libdir)/"
+	-cp "libcackey_g.@SHOBJEXT@" "$(DESTDIR)$(libdir)/"
 
 clean:
 	rm -f libcackey.@SHOBJEXT@ libcackey_g.@SHOBJEXT@
