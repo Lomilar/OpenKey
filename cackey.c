@@ -1761,6 +1761,9 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 			curr_id->file = ccc_curr->value_cardurl->objectid;
 			curr_id->label = NULL;
 
+			CACKEY_DEBUG_PRINTF("Filling curr_id->applet (%p) with %lu bytes:", curr_id->applet, (unsigned long) sizeof(curr_id->applet));
+			CACKEY_DEBUG_PRINTBUF("VAL:", curr_id->applet, sizeof(curr_id->applet));
+
 			curr_id->certificate_len = app_curr->length;
 
 			curr_id->certificate = malloc(curr_id->certificate_len);
@@ -1813,6 +1816,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  */
 static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen) {
 	cackey_ret send_ret;
+	int le;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -1822,10 +1826,10 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 		return(-1);
 	}
 
-	if (outbuflen > 255) {
-		CACKEY_DEBUG_PRINTF("Error.  outbuflen is grater than 255 (outbuflen = %lu)", (unsigned long) outbuflen);
-
-		return(-1);
+	if (outbuflen > 253) {
+		le = 253;
+	} else {
+		le = outbuflen;
 	}
 
 	if (slot == NULL) {
@@ -1850,12 +1854,13 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	cackey_begin_transaction(slot);
 
 	/* Select correct applet */
+	CACKEY_DEBUG_PRINTF("Selecting applet found at %p ...", identity->identity->applet);
 	cackey_select_applet(slot, identity->identity->applet, sizeof(identity->identity->applet));
 
 	/* Select correct file */
 	cackey_select_file(slot, identity->identity->file);
 
-	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, 0x00, 0x00, buflen, buf, outbuflen, NULL, outbuf, &outbuflen);
+	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, 0x00, 0x00, buflen, buf, le, NULL, outbuf, &outbuflen);
 	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
 
@@ -2112,31 +2117,6 @@ static int cackey_mutex_unlock(void *mutex) {
 	CACKEY_DEBUG_PRINTF("Returning sucessfully (0)");
 
 	return(0);
-}
-
-static void cackey_free_identities(struct cackey_identity *identities, unsigned long identities_count) {
-	CK_ATTRIBUTE *curr_attr;
-	unsigned long id_idx, attr_idx;
-
-	if (identities == NULL || identities_count == 0) {
-		return;
-	}
-
-	for (id_idx = 0; id_idx < identities_count; id_idx++) {
-		if (identities[id_idx].attributes) {
-			for (attr_idx = 0; attr_idx < identities[id_idx].attributes_count; attr_idx++) {
-				curr_attr = &identities[id_idx].attributes[attr_idx];
-
-				if (curr_attr->pValue) {
-					free(curr_attr->pValue);
-				}
-			}
-
-			free(identities[id_idx].attributes);
-		}
-	}
-
-	free(identities);
 }
 
 static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struct cackey_pcsc_identity *identity, unsigned long identity_num, CK_ULONG_PTR pulCount) {
@@ -2480,6 +2460,75 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 	CACKEY_DEBUG_PRINTF("Returning %lu objects (%p).", numattrs, retval);
 
 	return(retval);
+}
+
+static void cackey_free_identities(struct cackey_identity *identities, unsigned long identities_count) {
+	CK_ATTRIBUTE *curr_attr;
+	unsigned long id_idx, attr_idx;
+
+	if (identities == NULL || identities_count == 0) {
+		return;
+	}
+
+	for (id_idx = 0; id_idx < identities_count; id_idx++) {
+		if (identities[id_idx].attributes) {
+			for (attr_idx = 0; attr_idx < identities[id_idx].attributes_count; attr_idx++) {
+				curr_attr = &identities[id_idx].attributes[attr_idx];
+
+				if (curr_attr->pValue) {
+					free(curr_attr->pValue);
+				}
+			}
+
+			free(identities[id_idx].attributes);
+		}
+	}
+
+	free(identities);
+}
+
+static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, unsigned long *ids_found) {
+	struct cackey_pcsc_identity *pcsc_identities;
+	struct cackey_identity *identities;
+	unsigned long num_ids, id_idx, curr_id_type;
+	unsigned long num_certs, cert_idx;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (ids_found == NULL) {
+		CACKEY_DEBUG_PRINTF("Error.  ids_found is NULL");
+
+		return(NULL);
+	}
+
+	pcsc_identities = cackey_read_certs(slot, NULL, &num_certs);
+	if (pcsc_identities != NULL) {
+		/* Convert number of Certs to number of objects */
+		num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
+
+		identities = malloc(num_ids * sizeof(*identities));
+
+		id_idx = 0;
+		for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
+			for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
+				identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], cert_idx, &identities[id_idx].attributes_count);
+
+				if (identities[id_idx].attributes == NULL) {
+					identities[id_idx].attributes_count = 0;
+				}
+
+				id_idx++;
+			}
+		}
+
+		cackey_free_certs(pcsc_identities, num_certs, 1);
+
+		*ids_found = num_ids;
+		return(identities);
+	}
+
+	*ids_found = 0;
+	return(NULL);
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
@@ -3175,6 +3224,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 	}
 
 	/* Verify that the card is actually in the slot. */
+	/* XXX: Check to make sure this is in the PKCS#11 specification */
 	if (cackey_token_present(&cackey_slots[slotID]) != CACKEY_PCSC_S_TOKENPRESENT) {
 		CACKEY_DEBUG_PRINTF("Error.  Card not present.  Returning CKR_DEVICE_REMOVED");
 
@@ -3205,6 +3255,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 			cackey_sessions[idx].sign_active = 0;
 
 			cackey_sessions[idx].decrypt_active = 0;
+
+			cackey_sessions[idx].identities = cackey_read_identities(&cackey_slots[slotID], &cackey_sessions[idx].identities_count);
+
 
 			break;
 		}
@@ -3725,10 +3778,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OB
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
-	struct cackey_pcsc_identity *pcsc_identities;
-	struct cackey_identity *identities;
-	unsigned long num_ids, id_idx, curr_id_type;
-	unsigned long num_certs, cert_idx;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -3782,31 +3831,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 	}
 
 	if (cackey_sessions[hSession].identities == NULL) {
-		pcsc_identities = cackey_read_certs(&cackey_slots[cackey_sessions[hSession].slotID], NULL, &num_certs);
-		if (pcsc_identities != NULL) {
-			/* Convert number of Certs to number of objects */
-			num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
-
-			identities = malloc(num_ids * sizeof(*identities));
-
-			id_idx = 0;
-			for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
-				for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
-					identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], cert_idx, &identities[id_idx].attributes_count);
-
-					if (identities[id_idx].attributes == NULL) {
-						identities[id_idx].attributes_count = 0;
-					}
-
-					id_idx++;
-				}
-			}
-
-			cackey_sessions[hSession].identities = identities;
-			cackey_sessions[hSession].identities_count = num_ids;
-
-			cackey_free_certs(pcsc_identities, num_certs, 1);
-		}
+		cackey_sessions[hSession].identities = cackey_read_identities(&cackey_slots[cackey_sessions[hSession].slotID], &cackey_sessions[hSession].identities_count);
 	}
 
 	if (pTemplate != NULL) {
@@ -4542,6 +4567,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 	cackey_sessions[hSession].sign_buflen = 128;
 	cackey_sessions[hSession].sign_bufused = 0;
 	cackey_sessions[hSession].sign_buf = malloc(sizeof(*cackey_sessions[hSession].sign_buf) * cackey_sessions[hSession].sign_buflen);
+
+	CACKEY_DEBUG_PRINTF("Session %lu sign_identity is %p (identitie #%lu)", (unsigned long) hSession, &cackey_sessions[hSession].identities[hKey], (unsigned long) hKey);
 	cackey_sessions[hSession].sign_identity = &cackey_sessions[hSession].identities[hKey];
 
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
@@ -4734,6 +4761,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 	switch (cackey_sessions[hSession].sign_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to sign */
+			CACKEY_DEBUG_PRINTF("Asking to decrypt from identity %p in session %lu", cackey_sessions[hSession].sign_identity, (unsigned long) hSession);
 			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf));
 
 			if (sigbuflen < 0) {
