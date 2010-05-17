@@ -1844,7 +1844,8 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	unsigned char bytes_to_send, p1;
 	cackey_ret send_ret;
 	uint16_t respcode;
-	size_t tmpbuflen, padlen;
+	ssize_t retval;
+	size_t tmpbuflen, padlen, tmpoutbuflen;
 	int free_tmpbuf = 0;
 	int le;
 
@@ -1951,7 +1952,9 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 			le = 0x00;
 		}
 
-		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, p1, 0x00, bytes_to_send, tmpbuf, le, &respcode, outbuf, &outbuflen);
+		tmpoutbuflen = outbuflen;
+
+		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_SIGNDECRYPT, p1, 0x00, bytes_to_send, tmpbuf, le, &respcode, outbuf, &tmpoutbuflen);
 		if (send_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
 
@@ -1973,6 +1976,10 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 		tmpbuf += bytes_to_send;
 		tmpbuflen -= bytes_to_send;
+
+		outbuf += tmpoutbuflen;
+		outbuflen -= tmpoutbuflen;
+		retval += tmpoutbuflen;
 	}
 
 	if (free_tmpbuf) {
@@ -1996,7 +2003,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 	CACKEY_DEBUG_PRINTF("Returning in success.");
 
-	return(outbuflen);
+	return(retval);
 }
 
 /*
