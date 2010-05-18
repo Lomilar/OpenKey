@@ -520,6 +520,8 @@ struct cackey_slot {
 	int transaction_depth;
 
 	int slot_reset;
+
+	CK_FLAGS token_flags;
 };
 
 typedef enum {
@@ -2811,6 +2813,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_slots[idx].pcsc_reader = NULL;
 		cackey_slots[idx].transaction_depth = 0;
 		cackey_slots[idx].slot_reset = 0;
+		cackey_slots[idx].token_flags = 0;
 	}
 
 	cackey_initialized = 1;
@@ -3003,6 +3006,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 						cackey_slots[currslot].pcsc_card_connected = 0;
 						cackey_slots[currslot].transaction_depth = 0;
 						cackey_slots[currslot].slot_reset = 1;
+						cackey_slots[currslot].token_flags = CKF_LOGIN_REQUIRED;
 					}
 					currslot++;
 
@@ -3228,7 +3232,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 	pInfo->firmwareVersion.major = 0x00;
 	pInfo->firmwareVersion.minor = 0x00;
 
-	pInfo->flags = CKF_WRITE_PROTECTED | CKF_USER_PIN_INITIALIZED | CKF_TOKEN_INITIALIZED | CKF_LOGIN_REQUIRED;
+	pInfo->flags = CKF_WRITE_PROTECTED | CKF_USER_PIN_INITIALIZED | CKF_TOKEN_INITIALIZED | cackey_slots[slotID].token_flags;
 
 	pInfo->ulMaxSessionCount = (sizeof(cackey_sessions) / sizeof(cackey_sessions[0])) - 1;
 	pInfo->ulSessionCount = CK_UNAVAILABLE_INFORMATION;
@@ -3747,9 +3751,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 		if (login_ret == CACKEY_PCSC_E_LOCKED) {
 			CACKEY_DEBUG_PRINTF("Error.  Token is locked.");
 
+			cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_LOCKED;
+
 			return(CKR_PIN_LOCKED);
 		} else if (login_ret == CACKEY_PCSC_E_BADPIN) {
 			CACKEY_DEBUG_PRINTF("Error.  Invalid PIN.");
+
+			cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_COUNT_LOW;
 
 			return(CKR_PIN_INCORRECT);
 		}
@@ -3758,6 +3766,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 
 		return(CKR_GENERAL_ERROR);
 	}
+
+	cackey_slots[cackey_sessions[hSession].slotID].token_flags &= ~(CKF_USER_PIN_LOCKED | CKF_USER_PIN_COUNT_LOW | CKF_LOGIN_REQUIRED);
 
 	cackey_sessions[hSession].state = CKS_RO_USER_FUNCTIONS;
 
@@ -4061,6 +4071,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		}
 
 		cackey_slots[cackey_sessions[hSession].slotID].slot_reset = 0;
+		cackey_slots[cackey_sessions[hSession].slotID].token_flags = CKF_LOGIN_REQUIRED;
 	}
 
 	if (cackey_sessions[hSession].identities == NULL) {
@@ -4920,7 +4931,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR 
 
 			break;
 		case CKM_SHA1_RSA_PKCS:
-			/* Accumulate into a SHA1 hash */
+			/* XXX: Accumulate into a SHA1 hash */
 			cackey_mutex_unlock(cackey_biglock);
 
 			CACKEY_DEBUG_PRINTF("Returning CKR_FUNCTION_NOT_SUPPORTED (%i)", CKR_FUNCTION_NOT_SUPPORTED);
@@ -5023,7 +5034,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 
 			break;
 		case CKM_SHA1_RSA_PKCS:
-			/* Accumulate into a SHA1 hash */
+			/* XXX: Accumulate into a SHA1 hash */
 			cackey_mutex_unlock(cackey_biglock);
 
 			CACKEY_DEBUG_PRINTF("Returning CKR_FUNCTION_NOT_SUPPORTED (%i)", CKR_FUNCTION_NOT_SUPPORTED);
