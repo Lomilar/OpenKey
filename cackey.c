@@ -3165,6 +3165,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 		return(CKR_SLOT_ID_INVALID);
 	}
 
+	pInfo->flags = CKF_REMOVABLE_DEVICE | CKF_HW_SLOT;
+
+	if (cackey_token_present(&cackey_slots[slotID]) == CACKEY_PCSC_S_TOKENPRESENT) {
+		pInfo->flags |= CKF_TOKEN_PRESENT;
+	}
+
+	bytes_to_copy = strlen(cackey_slots[slotID].pcsc_reader);
+	if (sizeof(pInfo->manufacturerID) < bytes_to_copy) {
+		bytes_to_copy = sizeof(pInfo->manufacturerID);
+	}
+	memcpy(pInfo->manufacturerID, cackey_slots[slotID].pcsc_reader, bytes_to_copy);
+
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
 	if (mutex_retval != 0) {
 		CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
@@ -3176,18 +3188,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 	memcpy(pInfo->slotDescription, slotDescription, sizeof(slotDescription) - 1);
 
 	memset(pInfo->manufacturerID, ' ', sizeof(pInfo->manufacturerID));
-
-	bytes_to_copy = strlen(cackey_slots[slotID].pcsc_reader);
-	if (sizeof(pInfo->manufacturerID) < bytes_to_copy) {
-		bytes_to_copy = sizeof(pInfo->manufacturerID);
-	}
-	memcpy(pInfo->manufacturerID, cackey_slots[slotID].pcsc_reader, bytes_to_copy);
-
-	pInfo->flags = CKF_REMOVABLE_DEVICE | CKF_HW_SLOT;
-
-	if (cackey_token_present(&cackey_slots[slotID]) == CACKEY_PCSC_S_TOKENPRESENT) {
-		pInfo->flags |= CKF_TOKEN_PRESENT;
-	}
 
 	pInfo->hardwareVersion.major = (cackey_getversion() >> 16) & 0xff;
 	pInfo->hardwareVersion.minor = (cackey_getversion() >> 8) & 0xff;
