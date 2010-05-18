@@ -162,9 +162,9 @@
 #    include <stdio.h>
 #  endif
 
-#  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); }
-#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); }
-#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); perror(x); }
+#  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); fflush(stderr); }
+#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); fflush(stderr); }
+#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); perror(x); fflush(stderr); }
 #  define free(x) { CACKEY_DEBUG_PRINTF("FREE(%p) (%s)", x, #x); free(x); }
 
 static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
@@ -175,6 +175,7 @@ static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
 	fprintf(stderr, "%s():%i: ", func, line);
 	fprintf(stderr, "MALLOC() = %p", retval);
 	fprintf(stderr, "\n");
+	fflush(stderr);
 
 	return(retval);
 }
@@ -188,6 +189,7 @@ static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func,
 		fprintf(stderr, "%s():%i: ", func, line);
 		fprintf(stderr, "REALLOC(%p) = %p", ptr, retval);
 		fprintf(stderr, "\n");
+		fflush(stderr);
 	}
 
 	return(retval);
@@ -201,6 +203,7 @@ static char *CACKEY_DEBUG_FUNC_STRDUP(const char *ptr, const char *func, int lin
 	fprintf(stderr, "%s():%i: ", func, line);
 	fprintf(stderr, "STRDUP_MALLOC() = %p", retval);
 	fprintf(stderr, "\n");
+	fflush(stderr);
 
 	return(retval);
 }
