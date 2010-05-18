@@ -3707,6 +3707,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession, CK_BY
 
 CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen) {
 	int mutex_retval;
+	int tries_remaining;
 	int login_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -3744,7 +3745,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 		return(CKR_SESSION_HANDLE_INVALID);
 	}
 
-	login_ret = cackey_login(&cackey_slots[cackey_sessions[hSession].slotID], pPin, ulPinLen, NULL);
+	login_ret = cackey_login(&cackey_slots[cackey_sessions[hSession].slotID], pPin, ulPinLen, &tries_remaining);
 	if (login_ret != CACKEY_PCSC_S_OK) {
 		cackey_mutex_unlock(cackey_biglock);
 
@@ -3759,6 +3760,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 
 			cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_COUNT_LOW;
 
+			if (tries_remaining == 1) {
+				cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_FINAL_TRY;
+			}
+
 			return(CKR_PIN_INCORRECT);
 		}
 
@@ -3767,7 +3772,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 		return(CKR_GENERAL_ERROR);
 	}
 
-	cackey_slots[cackey_sessions[hSession].slotID].token_flags &= ~(CKF_USER_PIN_LOCKED | CKF_USER_PIN_COUNT_LOW | CKF_LOGIN_REQUIRED);
+	cackey_slots[cackey_sessions[hSession].slotID].token_flags &= ~(CKF_USER_PIN_LOCKED | CKF_USER_PIN_COUNT_LOW | CKF_LOGIN_REQUIRED | CKF_USER_PIN_FINAL_TRY);
 
 	cackey_sessions[hSession].state = CKS_RO_USER_FUNCTIONS;
 
