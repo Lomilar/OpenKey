@@ -464,8 +464,6 @@ struct cackey_pcsc_identity {
 	unsigned char applet[7];
 	uint16_t file;
 
-	unsigned char *label;
-
 	size_t certificate_len;
 	unsigned char *certificate;
 
@@ -525,6 +523,8 @@ struct cackey_slot {
 	int slot_reset;
 
 	CK_FLAGS token_flags;
+
+	unsigned char *label;
 };
 
 typedef enum {
@@ -650,6 +650,12 @@ static void cackey_slots_disconnect_all(void) {
 			CACKEY_DEBUG_PRINTF("SCardDisconnect(%lu) called", (unsigned long) idx);
 
 			SCardDisconnect(cackey_slots[idx].pcsc_card, SCARD_LEAVE_CARD);
+		}
+
+		if (cackey_slots[idx].label) {
+			free(cackey_slots[idx].label);
+
+			cackey_slots[idx].label = NULL;
 		}
 
 		cackey_slots[idx].pcsc_card_connected = 0;
@@ -1788,7 +1794,6 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 
 			memcpy(curr_id->applet, curr_aid, sizeof(curr_id->applet));
 			curr_id->file = ccc_curr->value_cardurl->objectid;
-			curr_id->label = NULL;
 			curr_id->keysize = -1;
 
 			CACKEY_DEBUG_PRINTF("Filling curr_id->applet (%p) with %lu bytes:", curr_id->applet, (unsigned long) sizeof(curr_id->applet));
@@ -2172,14 +2177,60 @@ static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, uns
  *
  */
 static cackey_ret cackey_token_present(struct cackey_slot *slot) {
-	unsigned char ccc_aid[] = {GSCIS_AID_CCC};
-	int send_ret;
+	cackey_ret pcsc_connect_ret;
+	DWORD reader_len, state, protocol, atr_len;
+	BYTE atr[MAX_ATR_SIZE];
+	LONG status_ret, scard_reconn_ret;
 
-	/* Select the CCC Applet */
-	send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
-	if (send_ret != CACKEY_PCSC_S_OK) {
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	pcsc_connect_ret = cackey_connect_card(slot);
+	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
+		CACKEY_DEBUG_PRINTF("Unable to connect to card, returning token absent");
+
 		return(CACKEY_PCSC_S_TOKENABSENT);
 	}
+
+	atr_len = sizeof(atr);
+	status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
+	if (status_ret != SCARD_S_SUCCESS) {
+		if (status_ret == SCARD_W_RESET_CARD) {
+			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
+
+			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
+			if (scard_reconn_ret == SCARD_S_SUCCESS) {
+				/* Re-establish transaction, if it was present */
+				if (slot->transaction_depth > 0) {
+					slot->transaction_depth--;
+					cackey_begin_transaction(slot);
+				}
+
+				CACKEY_DEBUG_PRINTF("Reset successful, requerying");
+				status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
+				if (status_ret != SCARD_S_SUCCESS) {
+					CACKEY_DEBUG_PRINTF("Still unable to query card status, returning token absent.  SCardStatus() = %s", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(status_ret));
+
+					return(CACKEY_PCSC_S_TOKENABSENT);
+				}
+			} else {
+				CACKEY_DEBUG_PRINTF("Unable to reconnect to card, returning token absent.  SCardReconnect() = %s", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_reconn_ret));
+
+				return(CACKEY_PCSC_S_TOKENABSENT);
+			}
+		} else {
+			CACKEY_DEBUG_PRINTF("Unable to query card status, returning token absent.  SCardStatus() = %s", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(status_ret));
+
+			return(CACKEY_PCSC_S_TOKENABSENT);
+		}
+	}
+
+	if ((state & SCARD_ABSENT) == SCARD_ABSENT) {
+		CACKEY_DEBUG_PRINTF("Card is absent, returning token absent");
+
+		return(CACKEY_PCSC_S_TOKENABSENT);
+	}
+
+	CACKEY_DEBUG_PRINTF("Returning token present.");
 
 	return(CACKEY_PCSC_S_TOKENPRESENT);
 }
@@ -2817,6 +2868,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_slots[idx].transaction_depth = 0;
 		cackey_slots[idx].slot_reset = 0;
 		cackey_slots[idx].token_flags = 0;
+		cackey_slots[idx].label = NULL;
 	}
 
 	cackey_initialized = 1;
@@ -2950,6 +3002,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 	/* Clear list of slots */
 	if (pSlotList) {
+		CACKEY_DEBUG_PRINTF("Purging all slot information.");
+
 		/* Only update the list of slots if we are actually being supply the slot information */
 		cackey_slots_disconnect_all();
 
@@ -2958,6 +3012,12 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 				free(cackey_slots[currslot].pcsc_reader);
 
 				cackey_slots[currslot].pcsc_reader = NULL;
+			}
+
+			if (cackey_slots[currslot].label) {
+				free(cackey_slots[currslot].label);
+
+				cackey_slots[currslot].label = NULL;
 			}
 
 			cackey_slots[currslot].active = 0;
@@ -3002,7 +3062,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 					CACKEY_DEBUG_PRINTF("Found reader: %s", pcsc_readers);
 
-					/* Only update the list of slots if we are actually being supply the slot information */
+					/* Only update the list of slots if we are actually being asked supply the slot information */
 					if (pSlotList) {
 						cackey_slots[currslot].active = 1;
 						cackey_slots[currslot].pcsc_reader = strdup(pcsc_readers);
@@ -3010,6 +3070,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 						cackey_slots[currslot].transaction_depth = 0;
 						cackey_slots[currslot].slot_reset = 1;
 						cackey_slots[currslot].token_flags = CKF_LOGIN_REQUIRED;
+						cackey_slots[currslot].label = NULL;
 					}
 					currslot++;
 
@@ -3203,16 +3264,26 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 	memset(pInfo->label, ' ', sizeof(pInfo->label));
 	use_default_label = 1;
 
-	pcsc_identities = cackey_read_certs(&cackey_slots[slotID], NULL, &num_certs);
-	if (pcsc_identities != NULL) {
-		if (num_certs > 0) {
-			label_ret = cackey_pcsc_identity_to_label(pcsc_identities, pInfo->label, sizeof(pInfo->label));
-			if (label_ret > 0) {
-				use_default_label = 0;
-			}
-		}
+	if (cackey_slots[slotID].label == NULL) {
+		pcsc_identities = cackey_read_certs(&cackey_slots[slotID], NULL, &num_certs);
+		if (pcsc_identities != NULL) {
+			if (num_certs > 0) {
+				label_ret = cackey_pcsc_identity_to_label(pcsc_identities, pInfo->label, sizeof(pInfo->label));
+				if (label_ret > 0) {
+					use_default_label = 0;
 
-		cackey_free_certs(pcsc_identities, num_certs, 1);
+					cackey_slots[slotID].label = malloc(sizeof(pInfo->label));
+
+					memcpy(cackey_slots[slotID].label, pInfo->label, sizeof(pInfo->label));
+				}
+			}
+
+			cackey_free_certs(pcsc_identities, num_certs, 1);
+		}
+	} else {
+		memcpy(pInfo->label, cackey_slots[slotID].label, sizeof(pInfo->label));
+
+		use_default_label = 0;
 	}
 
 	if (use_default_label) {
@@ -4076,6 +4147,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 
 			cackey_sessions[hSession].identities = NULL;
 			cackey_sessions[hSession].identities_count = 0;
+		}
+
+		if (cackey_slots[cackey_sessions[hSession].slotID].label != NULL) {
+			free(cackey_slots[cackey_sessions[hSession].slotID].label);
+			cackey_slots[cackey_sessions[hSession].slotID].label = NULL;
 		}
 
 		cackey_slots[cackey_sessions[hSession].slotID].slot_reset = 0;
