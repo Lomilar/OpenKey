@@ -2647,6 +2647,15 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
 
 				break;
+			case CKA_SIGN_RECOVER:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SIGN_RECOVER (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				pValue = &ck_false;
+				ulValueLen = sizeof(ck_false);
+
+				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+
+				break;
 			case CKA_DECRYPT:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_DECRYPT (0x%08lx) ...", (unsigned long) curr_attr_type);
 
