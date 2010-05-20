@@ -5099,7 +5099,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 		case CKM_RSA_PKCS:
 			/* Ask card to sign */
 			CACKEY_DEBUG_PRINTF("Asking to sign from identity %p in session %lu", cackey_sessions[hSession].sign_identity, (unsigned long) hSession);
-			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_buflen, sigbuf, sizeof(sigbuf), 1, 0);
+			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_bufused, sigbuf, sizeof(sigbuf), 1, 0);
 
 			if (sigbuflen < 0) {
 				/* Signing failed. */
