@@ -2,7 +2,7 @@
 
 rm -f aclocal.m4
 
-make -C aclocal
+${MAKE:-make} -C aclocal
 autoconf; autoheader
 
 rm -rf autom4te.cache/
