@@ -29,6 +29,9 @@
 #ifdef HAVE_LIMITS_H
 #  include <limits.h>
 #endif
+#ifdef HAVE_STDIO_H
+#  include <stdio.h>
+#endif
 #ifdef HAVE_ZLIB_H
 #  ifdef HAVE_LIBZ
 #    include <zlib.h>
@@ -158,9 +161,6 @@
 #define GSCIS_AID_CCC                 0xA0, 0x00, 0x00, 0x01, 0x16, 0xDB, 0x00
 
 #ifdef CACKEY_DEBUG
-#  ifdef HAVE_STDIO_H
-#    include <stdio.h>
-#  endif
 
 #  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); fflush(stderr); }
 #  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); fflush(stderr); }
@@ -1850,23 +1850,17 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  *
  */
 static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen, int padInput, int unpadOutput) {
-	unsigned char *tmpbuf, *tmpbuf_s;
+	unsigned char *tmpbuf, *tmpbuf_s, *outbuf_s;
 	unsigned char bytes_to_send, p1;
 	unsigned char blocktype;
 	cackey_ret send_ret;
 	uint16_t respcode;
 	ssize_t retval = 0, unpadoffset;
 	size_t tmpbuflen, padlen, tmpoutbuflen;
-	int free_tmpbuf = 0, sepByte = -1;
+	int free_tmpbuf = 0;
 	int le;
 
 	CACKEY_DEBUG_PRINTF("Called.");
-
-	if (buflen > 255) {
-		CACKEY_DEBUG_PRINTF("Error.  buflen is greater than 255 (buflen = %lu)", (unsigned long) buflen);
-
-		return(-1);
-	}
 
 	if (slot == NULL) {
 		CACKEY_DEBUG_PRINTF("Error.  slot is NULL");
@@ -1919,6 +1913,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 				padlen = tmpbuflen - buflen - 3;
 
+				/* RSA PKCS#1 EMSA-PKCS1-v1_5 Padding */
 				tmpbuf[0] = 0x00;
 				tmpbuf[1] = 0x01;
 				memset(&tmpbuf[2], 0xFF, padlen);
@@ -1959,6 +1954,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 	cackey_select_file(slot, identity->pcsc_identity->file);
 
 	tmpbuf_s = tmpbuf;
+	outbuf_s = outbuf;
 	while (tmpbuflen) {
 		if (tmpbuflen > 245) {
 			bytes_to_send = 245;
@@ -2006,6 +2002,8 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 		}
 	}
 
+	outbuf = outbuf_s;
+
 	/* End transaction */
 	cackey_end_transaction(slot);
 
@@ -2021,19 +2019,27 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 	/* Unpad reply */
 	if (unpadOutput) {
-		if (retval < 2) {
+		if (retval < 3) {
 			CACKEY_DEBUG_PRINTF("Reply is too small, we are not able to unpad -- passing back and hoping for the best!");
 
+			CACKEY_DEBUG_PRINTF("Returning in success, retval = %li (bytes)", (long) retval);
 			return(retval);
 		}
 
-		blocktype = outbuf[0];
+		if (outbuf[0] != 0x00) {
+			CACKEY_DEBUG_PRINTF("Unrecognized padding scheme -- passing back and hoping for the best!");
+
+			CACKEY_DEBUG_PRINTF("Returning in success, retval = %li (bytes)", (long) retval);
+			return(retval);
+		}
+
+		blocktype = outbuf[1];
 		unpadoffset = 0;
 
 		switch (blocktype) {
 			case 0x00:
 				/* Padding Scheme 1, the first non-zero byte is the start of data */
-				for (unpadoffset = 1; unpadoffset < retval; unpadoffset++) {
+				for (unpadoffset = 2; unpadoffset < retval; unpadoffset++) {
 					if (outbuf[unpadoffset] != 0x00) {
 						break;
 					}
@@ -2041,7 +2047,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 				break;
 			case 0x01:
 				/* Padding Scheme 2, pad bytes are 0xFF followed by 0x00 */
-				for (unpadoffset = 1; unpadoffset < retval; unpadoffset++) {
+				for (unpadoffset = 2; unpadoffset < retval; unpadoffset++) {
 					if (outbuf[unpadoffset] != 0xFF) {
 						if (outbuf[unpadoffset] == 0x00) {
 							unpadoffset++;
@@ -2060,19 +2066,9 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 				}
 				break;
 			case 0x02:
-				/* Padding Scheme 3, pad bytes are non-zero first non-zero byte found is the pad byte */
-				for (unpadoffset = 1; unpadoffset < retval; unpadoffset++) {
+				/* Padding Scheme 3, pad bytes are non-zero first zero byte found is the seperator byte */
+				for (unpadoffset = 2; unpadoffset < retval; unpadoffset++) {
 					if (outbuf[unpadoffset] == 0x00) {
-						continue;
-					}
-
-					if (sepByte == -1) {
-						sepByte = outbuf[unpadoffset];
-
-						continue;
-					}
-
-					if (outbuf[unpadoffset] == sepByte) {
 						unpadoffset++;
 
 						break;
@@ -2090,13 +2086,13 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 		CACKEY_DEBUG_PRINTBUF("Padded:", outbuf, retval);
 
 		retval -= unpadoffset;
-		memmove(outbuf + unpadoffset, outbuf, retval);
+		memmove(outbuf, outbuf + unpadoffset, retval);
 
 		CACKEY_DEBUG_PRINTBUF("Unpadded:", outbuf, retval);
 	}
 
 
-	CACKEY_DEBUG_PRINTF("Returning in success, signed %li bytes", (long) retval);
+	CACKEY_DEBUG_PRINTF("Returning in success, retval = %li (bytes)", (long) retval);
 
 	return(retval);
 }
@@ -2199,8 +2195,6 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 
 		if (status_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
-
-
 
 			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
@@ -2495,11 +2489,13 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_LABEL:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_LABEL (0x%08lx) ...", (unsigned long) curr_attr_type);
 
-				/* Determine name */
-				x509_read_ret = cackey_pcsc_identity_to_label(identity, ucTmpBuf, sizeof(ucTmpBuf));
-				if (x509_read_ret > 0) {
-					pValue = ucTmpBuf;
-					ulValueLen = x509_read_ret;
+				/* XXX: Determine name */
+				ulValueLen = snprintf(ucTmpBuf, sizeof(ucTmpBuf), "Identity #%lu", (unsigned long) identity_num);
+				pValue = ucTmpBuf;
+
+				if (ulValueLen >= sizeof(ucTmpBuf)) {
+					ulValueLen = 0;
+					pValue = NULL;
 				}
 
 				CACKEY_DEBUG_PRINTF(" ... returning (%p/%lu)", pValue, (unsigned long) ulValueLen);
@@ -2655,6 +2651,7 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_SIGN_RECOVER:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SIGN_RECOVER (0x%08lx) ...", (unsigned long) curr_attr_type);
 
+				/* We currently only support "Sign with Appendix" */
 				pValue = &ck_false;
 				ulValueLen = sizeof(ck_false);
 
@@ -2673,6 +2670,64 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				}
 
 				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+
+				break;
+			case CKA_SENSITIVE:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SENSITIVE (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass == CKO_PRIVATE_KEY) {
+					pValue = &ck_true;
+					ulValueLen = sizeof(ck_true);
+				} else {
+					pValue = &ck_false;
+					ulValueLen = sizeof(ck_false);
+				}
+
+				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+
+				break;
+			case CKA_EXTRACTABLE:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_EXTRACTABLE (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass == CKO_PRIVATE_KEY) {
+					pValue = &ck_false;
+					ulValueLen = sizeof(ck_true);
+				} else {
+					pValue = &ck_true;
+					ulValueLen = sizeof(ck_false);
+				}
+
+				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+
+				break;
+			case CKA_MODULUS:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_MODULUS (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (certificate_len >= 0) {
+					x509_read_ret = x509_to_modulus(certificate, certificate_len, &pValue);
+					if (x509_read_ret < 0) {
+						pValue = NULL;
+					} else {
+						ulValueLen = x509_read_ret;
+					}
+				}
+
+				CACKEY_DEBUG_PRINTF(" ... returning (%p/%lu)", pValue, (unsigned long) ulValueLen);
+
+				break;
+			case CKA_PUBLIC_EXPONENT:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_PUBLIC_EXPONENT (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (certificate_len >= 0) {
+					x509_read_ret = x509_to_exponent(certificate, certificate_len, &pValue);
+					if (x509_read_ret < 0) {
+						pValue = NULL;
+					} else {
+						ulValueLen = x509_read_ret;
+					}
+				}
+
+				CACKEY_DEBUG_PRINTF(" ... returning (%p/%lu)", pValue, (unsigned long) ulValueLen);
 
 				break;
 			case CKA_TRUST_SERVER_AUTH:

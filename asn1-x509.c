@@ -204,6 +204,62 @@ ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 	return(x509.serial_number.asn1rep_len);
 }
 
+ssize_t x509_to_modulus(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
+	struct asn1_object null, pubkey, modulus, exponent;
+	struct x509_object x509;
+	int read_ret;
+
+	read_ret = asn1_x509_read_object(x509_der_buf, x509_der_buf_len, &x509);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	/* The structure of "pubkey" is specified in PKCS #1 */
+	read_ret = asn1_x509_read_asn1_object(x509.pubkey.contents, x509.pubkey.size, &null, &pubkey, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	read_ret = asn1_x509_read_asn1_object(pubkey.contents, pubkey.size, &modulus, &exponent, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	if (outbuf) {
+		*outbuf = modulus.contents;
+	}
+
+	return(modulus.size);
+}
+
+ssize_t x509_to_exponent(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
+	struct asn1_object null, pubkey, modulus, exponent;
+	struct x509_object x509;
+	int read_ret;
+
+	read_ret = asn1_x509_read_object(x509_der_buf, x509_der_buf_len, &x509);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	/* The structure of "pubkey" is specified in PKCS #1 */
+	read_ret = asn1_x509_read_asn1_object(x509.pubkey.contents, x509.pubkey.size, &null, &pubkey, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	read_ret = asn1_x509_read_asn1_object(pubkey.contents, pubkey.size, &modulus, &exponent, NULL);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	if (outbuf) {
+		*outbuf = exponent.contents;
+	}
+
+	return(exponent.size);
+}
+
 ssize_t x509_to_keysize(void *x509_der_buf, size_t x509_der_buf_len) {
 	struct asn1_object null, pubkey, modulus, exponent;
 	struct x509_object x509;
