@@ -2194,8 +2194,13 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	atr_len = sizeof(atr);
 	status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
 	if (status_ret != SCARD_S_SUCCESS) {
+		slot->slot_reset = 1;
+		slot->token_flags = CKF_LOGIN_REQUIRED;
+
 		if (status_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
+
+
 
 			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
