@@ -4989,6 +4989,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
+	unsigned long start_sign_bufused;
 	CK_RV sign_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -4999,6 +5000,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
 	}
 
+	if (hSession == 0 || hSession >= (sizeof(cackey_sessions) / sizeof(cackey_sessions[0]))) {
+		CACKEY_DEBUG_PRINTF("Error.  Session out of range.");
+		
+		return(CKR_SESSION_HANDLE_INVALID);
+	}
+
+	start_sign_bufused = cackey_sessions[hSession].sign_bufused;
+
 	sign_ret = C_SignUpdate(hSession, pData, ulDataLen);
 	if (sign_ret != CKR_OK) {
 		CACKEY_DEBUG_PRINTF("Error.  SignUpdate() returned failure (rv = %lu).", (unsigned long) sign_ret);
@@ -5008,6 +5017,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 
 	sign_ret = C_SignFinal(hSession, pSignature, pulSignatureLen);
 	if (sign_ret != CKR_OK) {
+		if (sign_ret == CKR_BUFFER_TOO_SMALL) {
+			CACKEY_DEBUG_PRINTF("SignFinal() returned CKR_BUFFER_TOO_SMALL (rv = %lu), undoing C_SignUpdate()", (unsigned long) sign_ret);
+
+			cackey_sessions[hSession].sign_bufused = start_sign_bufused;
+
+			return(sign_ret);
+		}
+
 		CACKEY_DEBUG_PRINTF("Error.  SignFinal() returned failure (rv = %lu).", (unsigned long) sign_ret);
 
 		return(sign_ret);
