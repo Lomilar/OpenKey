@@ -3111,7 +3111,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 			if (scard_listreaders_ret == SCARD_S_SUCCESS) {
 				pcsc_readers_e = pcsc_readers + pcsc_readers_len;
 
-				currslot = 0;
+				/* Start with Slot ID 1, to avoid a bug in GDM */
+				/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+				currslot = 1;
 				while (pcsc_readers < pcsc_readers_e) {
 					curr_reader_len = strlen(pcsc_readers);
 
@@ -3146,8 +3148,12 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 					pcsc_readers += curr_reader_len + 1;
 				}
 
-				if (currslot > 0) {
-					slot_count = currslot;
+				/* Start with Slot ID 1, to avoid a bug in GDM */
+				/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+				if (currslot > 1) {
+					/* Start with Slot ID 1, to avoid a bug in GDM */
+					/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+					slot_count = currslot - 1;
 				}
 			} else {
 				CACKEY_DEBUG_PRINTF("Second call to SCardListReaders failed, return %s/%li", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_listreaders_ret), (long) scard_listreaders_ret);
@@ -3182,7 +3188,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 	}
 
 	for (currslot = 0; currslot < slot_count; currslot++) {
-		pSlotList[currslot] = currslot;
+		/* Start with Slot ID 1, to avoid a bug in GDM */
+		/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+		pSlotList[currslot] = currslot + 1;
 	}
 
 	*pulCount = slot_count;
