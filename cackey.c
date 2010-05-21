@@ -3115,8 +3115,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 			if (scard_listreaders_ret == SCARD_S_SUCCESS) {
 				pcsc_readers_e = pcsc_readers + pcsc_readers_len;
 
-				/* Start with Slot ID 1, to avoid a bug in GDM */
-				/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+				/* Start with Slot ID 1, to avoid a bug in GDM on RHEL */
+				/* Bug 594911: https://bugzilla.redhat.com/show_bug.cgi?id=594911 */
 				currslot = 1;
 				while (pcsc_readers < pcsc_readers_e) {
 					curr_reader_len = strlen(pcsc_readers);
@@ -3152,11 +3152,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 					pcsc_readers += curr_reader_len + 1;
 				}
 
-				/* Start with Slot ID 1, to avoid a bug in GDM */
-				/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+				/* Start with Slot ID 1, to avoid a bug in GDM on RHEL */
+				/* Bug 594911: https://bugzilla.redhat.com/show_bug.cgi?id=594911 */
 				if (currslot > 1) {
-					/* Start with Slot ID 1, to avoid a bug in GDM */
-					/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+					/* Start with Slot ID 1, to avoid a bug in GDM on RHEL */
+					/* Bug 594911: https://bugzilla.redhat.com/show_bug.cgi?id=594911 */
 					slot_count = currslot - 1;
 				}
 			} else {
@@ -3192,8 +3192,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 	}
 
 	for (currslot = 0; currslot < slot_count; currslot++) {
-		/* Start with Slot ID 1, to avoid a bug in GDM */
-		/* Bug 619297: https://bugzilla.gnome.org/show_bug.cgi?id=619297 */
+		/* Start with Slot ID 1, to avoid a bug in GDM on RHEL */
+		/* Bug 594911: https://bugzilla.redhat.com/show_bug.cgi?id=594911 */
 		pSlotList[currslot] = currslot + 1;
 	}
 
