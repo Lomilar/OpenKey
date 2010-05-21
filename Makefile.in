@@ -46,6 +46,8 @@ splint-cackey.txt: cackey.c asn1-x509.c asn1-x509.h config.h
 
 install: libcackey.@SHOBJEXT@
 	-mkdir "$(DESTDIR)$(libdir)"
+	rm -f "$(DESTDIR)$(libdir)/libcackey.@SHOBJEXT@"
+	rm -f "$(DESTDIR)$(libdir)/libcackey_g.@SHOBJEXT@"
 	cp "libcackey.@SHOBJEXT@" "$(DESTDIR)$(libdir)/"
 	-cp "libcackey_g.@SHOBJEXT@" "$(DESTDIR)$(libdir)/"
 
