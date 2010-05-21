@@ -45,7 +45,7 @@ splint-cackey.txt: cackey.c asn1-x509.c asn1-x509.h config.h
 	splint $(DEBUGCPPFLAGS) -DCACKEY_PARANOID=1 -weak +posixlib -I/usr/include/PCSC -Ipkcs11 cackey.c > splint-cackey.txt
 
 install: libcackey.@SHOBJEXT@
-	-mkdir "$(DESTDIR)$(libdir)"
+	-mkdir -p "$(DESTDIR)$(libdir)"
 	rm -f "$(DESTDIR)$(libdir)/libcackey.@SHOBJEXT@"
 	rm -f "$(DESTDIR)$(libdir)/libcackey_g.@SHOBJEXT@"
 	cp "libcackey.@SHOBJEXT@" "$(DESTDIR)$(libdir)/"
