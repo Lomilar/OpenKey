@@ -23,10 +23,7 @@ v2.1 or newer.
 
 %build
 CFLAGS="%{optflags}" \
-./configure \
-  --prefix=%{_prefix} \
-  --libdir=%{_libdir}
-  --mandir=%{_mandir}
+	./configure --prefix=%{_prefix} --libdir=%{_libdir} --mandir=%{_mandir}
 make  %{?_smp_mflags}
 
 
