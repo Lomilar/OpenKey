@@ -3861,6 +3861,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession, CK_BY
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen) {
+	CK_SLOT_ID slotID;
 	int mutex_retval;
 	int tries_remaining;
 	int login_ret;
@@ -3900,23 +3901,39 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 		return(CKR_SESSION_HANDLE_INVALID);
 	}
 
-	login_ret = cackey_login(&cackey_slots[cackey_sessions[hSession].slotID], pPin, ulPinLen, &tries_remaining);
+	slotID = cackey_sessions[hSession].slotID;
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	login_ret = cackey_login(&cackey_slots[slotID], pPin, ulPinLen, &tries_remaining);
 	if (login_ret != CACKEY_PCSC_S_OK) {
 		cackey_mutex_unlock(cackey_biglock);
 
 		if (login_ret == CACKEY_PCSC_E_LOCKED) {
 			CACKEY_DEBUG_PRINTF("Error.  Token is locked.");
 
-			cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_LOCKED;
+			cackey_slots[slotID].token_flags |= CKF_USER_PIN_LOCKED;
 
 			return(CKR_PIN_LOCKED);
 		} else if (login_ret == CACKEY_PCSC_E_BADPIN) {
 			CACKEY_DEBUG_PRINTF("Error.  Invalid PIN.");
 
-			cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_COUNT_LOW;
+			cackey_slots[slotID].token_flags |= CKF_USER_PIN_COUNT_LOW;
 
 			if (tries_remaining == 1) {
-				cackey_slots[cackey_sessions[hSession].slotID].token_flags |= CKF_USER_PIN_FINAL_TRY;
+				cackey_slots[slotID].token_flags |= CKF_USER_PIN_FINAL_TRY;
 			}
 
 			return(CKR_PIN_INCORRECT);
@@ -3927,7 +3944,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 		return(CKR_GENERAL_ERROR);
 	}
 
-	cackey_slots[cackey_sessions[hSession].slotID].token_flags &= ~(CKF_USER_PIN_LOCKED | CKF_USER_PIN_COUNT_LOW | CKF_LOGIN_REQUIRED | CKF_USER_PIN_FINAL_TRY);
+	cackey_slots[slotID].token_flags &= ~(CKF_USER_PIN_LOCKED | CKF_USER_PIN_COUNT_LOW | CKF_LOGIN_REQUIRED | CKF_USER_PIN_FINAL_TRY);
 
 	cackey_sessions[hSession].state = CKS_RO_USER_FUNCTIONS;
 
@@ -3944,6 +3961,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_Logout)(CK_SESSION_HANDLE hSession) {
+	CK_SLOT_ID slotID;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -3975,7 +3993,24 @@ CK_DEFINE_FUNCTION(CK_RV, C_Logout)(CK_SESSION_HANDLE hSession) {
 		return(CKR_SESSION_HANDLE_INVALID);
 	}
 
+	slotID = cackey_sessions[hSession].slotID;
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
 	cackey_sessions[hSession].state = CKS_RO_PUBLIC_SESSION;
+	cackey_slots[slotID].token_flags = CKF_LOGIN_REQUIRED;
 
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
 	if (mutex_retval != 0) {
@@ -4181,6 +4216,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OB
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
+	CK_SLOT_ID slotID;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -4220,7 +4256,23 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		return(CKR_OPERATION_ACTIVE);
 	}
 
-	if (cackey_slots[cackey_sessions[hSession].slotID].slot_reset) {
+	slotID = cackey_sessions[hSession].slotID;
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].slot_reset) {
 		CACKEY_DEBUG_PRINTF("The slot has been reset since we last looked for identities -- rescanning");
 
 		if (cackey_sessions[hSession].identities != NULL) {
@@ -4230,17 +4282,17 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 			cackey_sessions[hSession].identities_count = 0;
 		}
 
-		if (cackey_slots[cackey_sessions[hSession].slotID].label != NULL) {
-			free(cackey_slots[cackey_sessions[hSession].slotID].label);
-			cackey_slots[cackey_sessions[hSession].slotID].label = NULL;
+		if (cackey_slots[slotID].label != NULL) {
+			free(cackey_slots[slotID].label);
+			cackey_slots[slotID].label = NULL;
 		}
 
-		cackey_slots[cackey_sessions[hSession].slotID].slot_reset = 0;
-		cackey_slots[cackey_sessions[hSession].slotID].token_flags = CKF_LOGIN_REQUIRED;
+		cackey_slots[slotID].slot_reset = 0;
+		cackey_slots[slotID].token_flags = CKF_LOGIN_REQUIRED;
 	}
 
 	if (cackey_sessions[hSession].identities == NULL) {
-		cackey_sessions[hSession].identities = cackey_read_identities(&cackey_slots[cackey_sessions[hSession].slotID], &cackey_sessions[hSession].identities_count);
+		cackey_sessions[hSession].identities = cackey_read_identities(&cackey_slots[slotID], &cackey_sessions[hSession].identities_count);
 	}
 
 	if (pTemplate != NULL) {
@@ -4667,6 +4719,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Decrypt)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pEn
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pEncryptedPart, CK_ULONG ulEncryptedPartLen, CK_BYTE_PTR pPart, CK_ULONG_PTR pulPartLen) {
 	static CK_BYTE buf[16384];
 	ssize_t buflen;
+	CK_SLOT_ID slotID;
 	CK_RV retval = CKR_GENERAL_ERROR;
 	int mutex_retval;
 
@@ -4732,10 +4785,26 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 		return(CKR_OPERATION_NOT_INITIALIZED);
 	}
 
+	slotID = cackey_sessions[hSession].slotID;
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
 	switch (cackey_sessions[hSession].decrypt_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to decrypt */
-			buflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf), 0, 1);
+			buflen = cackey_signdecrypt(&cackey_slots[slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf), 0, 1);
 
 			if (buflen < 0) {
 				/* Decryption failed. */
@@ -5137,6 +5206,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR 
 CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 	static CK_BYTE sigbuf[1024];
 	ssize_t sigbuflen;
+	CK_SLOT_ID slotID;
 	CK_RV retval = CKR_GENERAL_ERROR;
 	int terminate_sign = 1;
 	int mutex_retval;
@@ -5184,11 +5254,27 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 		return(CKR_OPERATION_NOT_INITIALIZED);
 	}
 
+	slotID = cackey_sessions[hSession].slotID;
+
+	if (slotID < 0 || slotID >= (sizeof(cackey_slots) / sizeof(cackey_slots[0]))) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), outside of valid range", slotID);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
+	if (cackey_slots[slotID].active == 0) {
+		CACKEY_DEBUG_PRINTF("Error. Invalid slot requested (%lu), slot not currently active", slotID);
+
+		cackey_mutex_unlock(cackey_biglock);
+
+		return(CKR_GENERAL_ERROR);
+	}
+
 	switch (cackey_sessions[hSession].sign_mechanism) {
 		case CKM_RSA_PKCS:
 			/* Ask card to sign */
 			CACKEY_DEBUG_PRINTF("Asking to sign from identity %p in session %lu", cackey_sessions[hSession].sign_identity, (unsigned long) hSession);
-			sigbuflen = cackey_signdecrypt(&cackey_slots[cackey_sessions[hSession].slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_bufused, sigbuf, sizeof(sigbuf), 1, 0);
+			sigbuflen = cackey_signdecrypt(&cackey_slots[slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_bufused, sigbuf, sizeof(sigbuf), 1, 0);
 
 			if (sigbuflen < 0) {
 				/* Signing failed. */
