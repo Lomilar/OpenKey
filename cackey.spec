@@ -1,12 +1,14 @@
 Summary: PC/SC PKCS#11 Provider for Government Smartcards
 Name: cackey
 Version: @@VERS@@
-Release: 1aceit
+Release: 1
 License: Public Domain
 Packager: Roy Keene <roy.keene@us.army.mil>
 URL: https://software.forge.mil/sf/frs/do/listReleases/projects.community_cac/frs.cackey
 Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
+Group: System Environment/Libraries
+Requires: pcsc-lite
 
 
 %description
