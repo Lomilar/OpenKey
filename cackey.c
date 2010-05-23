@@ -197,7 +197,7 @@ static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func,
 	}
 
 	if (retval == NULL) {
-		CACKEY_DEBUG_PRINTF(" *** ERROR *** realloc returned NULL");
+		CACKEY_DEBUG_PRINTF(" *** ERROR *** realloc returned NULL (size = %lu)", (unsigned long) size);
 	}
 
 	return(retval);
@@ -389,10 +389,12 @@ static const char *CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(LONG retcode) {
 			return("SCARD_E_NO_SERVICE");
 		case SCARD_E_SERVICE_STOPPED:
 			return("SCARD_E_SERVICE_STOPPED");
-		case SCARD_W_INSERTED_CARD:
-			return("SCARD_W_INSERTED_CARD");
 		case SCARD_E_UNSUPPORTED_FEATURE:
 			return("SCARD_E_UNSUPPORTED_FEATURE");
+#ifdef SCARD_W_INSERTED_CARD
+		case SCARD_W_INSERTED_CARD:
+			return("SCARD_W_INSERTED_CARD");
+#endif
 #ifdef SCARD_E_NO_READERS_AVAILABLE
 		case SCARD_E_NO_READERS_AVAILABLE:
 			return("SCARD_E_NO_READERS_AVAILABLE");
