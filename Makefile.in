@@ -33,7 +33,7 @@ asn1-x509_g.o: asn1-x509.c asn1-x509.h config.h
 
 libcackey.@SHOBJEXT@: cackey.o asn1-x509.o
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey.@SHOBJEXT@ cackey.o asn1-x509.o $(LIBS)
-	-$(STRIP) -g "libcackey.@SHOBJEXT@"
+	-$(STRIP) -x "libcackey.@SHOBJEXT@"
 
 libcackey_g.@SHOBJEXT@: cackey_g.o asn1-x509_g.o
 	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey_g.@SHOBJEXT@ cackey_g.o asn1-x509_g.o $(LIBS)
