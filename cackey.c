@@ -160,8 +160,9 @@
 /** Applet IDs **/
 #define GSCIS_AID_CCC                 0xA0, 0x00, 0x00, 0x01, 0x16, 0xDB, 0x00
 
-/* Do not set this above 252 */
-#define CACKEY_APDU_MTU               128
+/* Maximum size of data portion of APDUs */
+/** Do not set this above 250 **/
+#define CACKEY_APDU_MTU               250
 
 #ifdef CACKEY_DEBUG
 
@@ -1073,12 +1074,6 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 
 	recv_len = sizeof(recv_buf);
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
-	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
-		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = SCARD_E_NOT_TRANSACTED), retrying...");
-
-		recv_len = sizeof(recv_buf);
-		scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
-	}
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
