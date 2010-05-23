@@ -553,12 +553,13 @@ typedef enum {
 } cackey_tlv_objectid;
 
 typedef enum {
-	CACKEY_PCSC_S_TOKENPRESENT    = 2,
-	CACKEY_PCSC_S_TOKENABSENT     = 1,
+	CACKEY_PCSC_S_TOKENPRESENT    = 1,
 	CACKEY_PCSC_S_OK              = 0,
 	CACKEY_PCSC_E_GENERIC         = -1,
 	CACKEY_PCSC_E_BADPIN          = -2,
 	CACKEY_PCSC_E_LOCKED          = -3,
+	CACKEY_PCSC_E_NEEDLOGIN       = -4,
+	CACKEY_PCSC_E_TOKENABSENT     = -6,
 } cackey_ret;
 
 struct cackey_tlv_cardurl {
@@ -1069,6 +1070,11 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 
 	recv_len = sizeof(recv_buf);
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
+	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
+		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = SCARD_E_NOT_TRANSACTED), retrying...");
+
+		scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
+	}
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
@@ -1100,7 +1106,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 					slot->transaction_depth = 1;
 					cackey_end_transaction(slot);
 
-					return(CACKEY_PCSC_E_GENERIC);
+					return(CACKEY_PCSC_E_TOKENABSENT);
 				}
 			} else {
 				CACKEY_DEBUG_PRINTF("Disconnecting card");
@@ -1113,7 +1119,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 				cackey_end_transaction(slot);
 
 				CACKEY_DEBUG_PRINTF("Returning in failure");
-				return(CACKEY_PCSC_E_GENERIC);
+				return(CACKEY_PCSC_E_TOKENABSENT);
 			}
 		} else {
 			CACKEY_DEBUG_PRINTF("Disconnecting card");
@@ -1126,7 +1132,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 			cackey_end_transaction(slot);
 
 			CACKEY_DEBUG_PRINTF("Returning in failure");
-			return(CACKEY_PCSC_E_GENERIC);
+			return(CACKEY_PCSC_E_TOKENABSENT);
 		}
 	}
 
@@ -1976,10 +1982,6 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 		if (send_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
 
-			if (respcode == 0x6982) {
-				CACKEY_DEBUG_PRINTF("Security status not satisified.");
-			}
-
 			if (free_tmpbuf) {
 				if (tmpbuf_s) {
 					free(tmpbuf_s);
@@ -1988,6 +1990,24 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 			/* End transaction */
 			cackey_end_transaction(slot);
+
+			if (respcode == 0x6982) {
+				CACKEY_DEBUG_PRINTF("Security status not satisified.  Returning NEEDLOGIN");
+
+				slot->slot_reset = 1;
+				slot->token_flags = CKF_LOGIN_REQUIRED;
+
+				return(CACKEY_PCSC_E_NEEDLOGIN);
+			}
+
+			if (send_ret == CACKEY_PCSC_E_TOKENABSENT) {
+				CACKEY_DEBUG_PRINTF("Token absent.  Returning TOKENABSENT");
+
+				slot->slot_reset = 1;
+				slot->token_flags = CKF_LOGIN_REQUIRED;
+
+				return(CACKEY_PCSC_E_TOKENABSENT);
+			}
 
 			return(-1);
 		}
@@ -2188,7 +2208,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Unable to connect to card, returning token absent");
 
-		return(CACKEY_PCSC_S_TOKENABSENT);
+		return(CACKEY_PCSC_E_TOKENABSENT);
 	}
 
 	atr_len = sizeof(atr);
@@ -2213,24 +2233,24 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 				if (status_ret != SCARD_S_SUCCESS) {
 					CACKEY_DEBUG_PRINTF("Still unable to query card status, returning token absent.  SCardStatus() = %s", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(status_ret));
 
-					return(CACKEY_PCSC_S_TOKENABSENT);
+					return(CACKEY_PCSC_E_TOKENABSENT);
 				}
 			} else {
 				CACKEY_DEBUG_PRINTF("Unable to reconnect to card, returning token absent.  SCardReconnect() = %s", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_reconn_ret));
 
-				return(CACKEY_PCSC_S_TOKENABSENT);
+				return(CACKEY_PCSC_E_TOKENABSENT);
 			}
 		} else {
 			CACKEY_DEBUG_PRINTF("Unable to query card status, returning token absent.  SCardStatus() = %s", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(status_ret));
 
-			return(CACKEY_PCSC_S_TOKENABSENT);
+			return(CACKEY_PCSC_E_TOKENABSENT);
 		}
 	}
 
 	if ((state & SCARD_ABSENT) == SCARD_ABSENT) {
 		CACKEY_DEBUG_PRINTF("Card is absent, returning token absent");
 
-		return(CACKEY_PCSC_S_TOKENABSENT);
+		return(CACKEY_PCSC_E_TOKENABSENT);
 	}
 
 	CACKEY_DEBUG_PRINTF("Returning token present.");
@@ -4808,7 +4828,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 
 			if (buflen < 0) {
 				/* Decryption failed. */
-				retval = CKR_GENERAL_ERROR;
+				if (buflen == CACKEY_PCSC_E_NEEDLOGIN) {
+					retval = CKR_USER_NOT_LOGGED_IN;
+				} else if (buflen == CACKEY_PCSC_E_TOKENABSENT) {
+					retval = CKR_DEVICE_REMOVED;
+				} else {
+					retval = CKR_GENERAL_ERROR;
+				}
 			} else if (((unsigned long) buflen) > *pulPartLen && pPart) {
 				/* Decrypted data too large */
 				retval = CKR_BUFFER_TOO_SMALL;
@@ -5278,7 +5304,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 
 			if (sigbuflen < 0) {
 				/* Signing failed. */
-				retval = CKR_GENERAL_ERROR;
+				if (sigbuflen == CACKEY_PCSC_E_NEEDLOGIN) {
+					retval = CKR_USER_NOT_LOGGED_IN;
+				} else if (sigbuflen == CACKEY_PCSC_E_TOKENABSENT) {
+					retval = CKR_DEVICE_REMOVED;
+				} else {
+					retval = CKR_GENERAL_ERROR;
+				}
 			} else if (((unsigned long) sigbuflen) > *pulSignatureLen && pSignature) {
 				/* Signed data too large */
 				CACKEY_DEBUG_PRINTF("retval = CKR_BUFFER_TOO_SMALL;  sigbuflen = %lu, pulSignatureLen = %lu", (unsigned long) sigbuflen, (unsigned long) *pulSignatureLen);
