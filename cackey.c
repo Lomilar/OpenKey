@@ -1009,8 +1009,10 @@ static cackey_ret cackey_end_transaction(struct cackey_slot *slot) {
  *         the response data to be discarded.
  *
  * RETURN VALUE
- *     CACKEY_PCSC_S_OK         On success
- *     CACKEY_PCSC_E_GENERIC    On error
+ *     CACKEY_PCSC_S_OK           On success
+ *     CACKEY_PCSC_E_GENERIC      On error
+ *     CACKEY_PCSC_E_TOKENABSENT  If the sending failed because the token is
+ *                                absent
  *
  * NOTES
  *     This function will connect to the PC/SC Connection Manager via
