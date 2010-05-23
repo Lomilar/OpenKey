@@ -160,6 +160,9 @@
 /** Applet IDs **/
 #define GSCIS_AID_CCC                 0xA0, 0x00, 0x00, 0x01, 0x16, 0xDB, 0x00
 
+/* Do not set this above 252 */
+#define CACKEY_APDU_MTU               128
+
 #ifdef CACKEY_DEBUG
 
 #  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); fflush(stderr); }
@@ -1073,6 +1076,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = SCARD_E_NOT_TRANSACTED), retrying...");
 
+		recv_len = sizeof(recv_buf);
 		scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T1, recv_buf, &recv_len);
 	}
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
@@ -1094,6 +1098,8 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 				}
 
 				CACKEY_DEBUG_PRINTF("Reset successful, retransmitting");
+
+				recv_len = sizeof(recv_buf);
 				scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, SCARD_PCI_T0, recv_buf, &recv_len);
 
 				if (scard_xmit_ret != SCARD_S_SUCCESS) {
@@ -1187,7 +1193,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		CACKEY_DEBUG_PRINTF("Buffer read required");
 
 		if (minor_rc == 0x00) {
-			minor_rc = 253;
+			minor_rc = CACKEY_APDU_MTU;
 		}
 
 		pcsc_getresp_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_GET_RESPONSE, 0x00, 0x00, 0, NULL, minor_rc, respcode, respdata, &tmp_respdata_len);
@@ -1264,7 +1270,7 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 	CACKEY_DEBUG_PRINTF("Called.");
 
 	max_offset = count;
-	max_count = 252;
+	max_count = CACKEY_APDU_MTU;
 
 	if (t_or_v != 1 && t_or_v != 2) {
 		CACKEY_DEBUG_PRINTF("Invalid T or V parameter specified, returning in failure");
