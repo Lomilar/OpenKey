@@ -1367,7 +1367,7 @@ static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *
 
 	CACKEY_DEBUG_PRINTBUF("Selecting applet:", aid, aid_len);
 
-	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, GSCIS_PARAM_SELECT_APPLET, 0x0C, aid_len, aid, 0x00, NULL, NULL, NULL);
+	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, GSCIS_PARAM_SELECT_APPLET, 0x00, aid_len, aid, 0x00, NULL, NULL, NULL);
 	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Failed to open applet, returning in failure");
 
