@@ -1491,13 +1491,13 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 	unsigned char tlen_buf[2], tval_buf[1024], *tval;
 	unsigned char vlen_buf[2], vval_buf[8192], *vval;
 	unsigned char *tmpbuf;
+	unsigned long tmpbuflen;
 	ssize_t tlen, vlen;
 	ssize_t read_ret;
 	size_t offset_t = 0, offset_v = 0;
 	unsigned char tag;
 	size_t length;
 #ifdef HAVE_LIBZ
-	uLongf tmpbuflen;
 	int uncompress_ret;
 #endif
 
@@ -1602,10 +1602,10 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 			case GSCIS_TAG_CERTIFICATE:
 				curr_entity = malloc(sizeof(*curr_entity));
 
+#ifdef HAVE_LIBZ
 				tmpbuflen = length * 2;
 				tmpbuf = malloc(tmpbuflen);
 
-#ifdef HAVE_LIBZ
 				uncompress_ret = uncompress(tmpbuf, &tmpbuflen, vval, length);
 				if (uncompress_ret != Z_OK) {
 					CACKEY_DEBUG_PRINTF("Failed to decompress, uncompress() returned %i -- resorting to direct copy", uncompress_ret);
