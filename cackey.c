@@ -843,7 +843,12 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 	/* Connect to reader, if needed */
 	if (!slot->pcsc_card_connected) {
 		CACKEY_DEBUG_PRINTF("SCardConnect(%s) called", slot->pcsc_reader);
-		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
+		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
+
+		if (scard_conn_ret == SCARD_W_UNPOWERED_CARD) {
+			scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_DIRECT, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
+			scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
+		}
 
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
 			CACKEY_DEBUG_PRINTF("Connection to card failed, returning in failure (SCardConnect() = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_conn_ret), (long) scard_conn_ret);
@@ -1092,7 +1097,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
 
-			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
+			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
 				/* Re-establish transaction, if it was present */
 				if (slot->transaction_depth > 0) {
@@ -1108,7 +1113,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 				if (scard_xmit_ret != SCARD_S_SUCCESS) {
 					CACKEY_DEBUG_PRINTF("Retransmit failed, returning in failure after disconnecting the card (SCardTransmit = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (long) scard_xmit_ret);
 
-					SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
+					SCardDisconnect(slot->pcsc_card, SCARD_LEAVE_CARD);
 					slot->pcsc_card_connected = 0;
 
 					/* End Smartcard Transaction */
@@ -1120,7 +1125,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 			} else {
 				CACKEY_DEBUG_PRINTF("Disconnecting card");
 
-				SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
+				SCardDisconnect(slot->pcsc_card, SCARD_LEAVE_CARD);
 				slot->pcsc_card_connected = 0;
 
 				/* End Smartcard Transaction */
@@ -1133,7 +1138,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		} else {
 			CACKEY_DEBUG_PRINTF("Disconnecting card");
 
-			SCardDisconnect(slot->pcsc_card, SCARD_RESET_CARD);
+			SCardDisconnect(slot->pcsc_card, SCARD_LEAVE_CARD);
 			slot->pcsc_card_connected = 0;
 
 			/* End Smartcard Transaction */
@@ -3136,6 +3141,17 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 		pcsc_readers_len = 0;
 
 		scard_listreaders_ret = SCardListReaders(*cackey_pcsc_handle, NULL, NULL, &pcsc_readers_len);
+
+		if (scard_listreaders_ret == SCARD_F_COMM_ERROR) {
+			CACKEY_DEBUG_PRINTF("Error. SCardListReaders() returned SCARD_F_COMM_ERROR, assuming Connection to PC/SC went away. Reconnecting.");
+
+			cackey_pcsc_disconnect();
+			cackey_pcsc_connect();
+
+			CACKEY_DEBUG_PRINTF("Trying SCardListReaders() again");
+			scard_listreaders_ret = SCardListReaders(*cackey_pcsc_handle, NULL, NULL, &pcsc_readers_len);
+		}
+
 		if (scard_listreaders_ret == SCARD_S_SUCCESS && pcsc_readers_len != 0) {
 			pcsc_readers = malloc(pcsc_readers_len);
 			pcsc_readers_s = pcsc_readers;
