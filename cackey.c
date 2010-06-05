@@ -2515,6 +2515,15 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
 
 				break;
+			case CKA_TRUSTED:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUSTED (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				pValue = &ck_true;
+				ulValueLen = sizeof(ck_true);
+
+				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+
+				break;
 			case CKA_MODIFIABLE:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_MODIFIABLE (0x%08lx) ...", (unsigned long) curr_attr_type);
 
@@ -4262,6 +4271,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OB
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) {
 	CK_SLOT_ID slotID;
+	CK_ULONG idx;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -4346,6 +4356,19 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 			cackey_sessions[hSession].search_query = malloc(ulCount * sizeof(*pTemplate));
 
 			memcpy(cackey_sessions[hSession].search_query, pTemplate, ulCount * sizeof(*pTemplate));
+			for (idx = 0; idx < ulCount; idx++) {
+				if (pTemplate[idx].ulValueLen == 0) {
+					cackey_sessions[hSession].search_query[idx].pValue = NULL;
+
+					continue;
+				}
+
+				cackey_sessions[hSession].search_query[idx].pValue = malloc(pTemplate[idx].ulValueLen);
+
+				if (cackey_sessions[hSession].search_query[idx].pValue) {
+					memcpy(cackey_sessions[hSession].search_query[idx].pValue, pTemplate[idx].pValue, pTemplate[idx].ulValueLen);
+				}
+			}
 		} else {
 			cackey_sessions[hSession].search_query_count = 0;
 			cackey_sessions[hSession].search_query = NULL;
@@ -4522,6 +4545,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_H
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsFinal)(CK_SESSION_HANDLE hSession) {
+	CK_ULONG idx;
 	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -4562,6 +4586,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsFinal)(CK_SESSION_HANDLE hSession) {
 	}
 
 	cackey_sessions[hSession].search_active = 0;
+
+	for (idx = 0; idx < cackey_sessions[hSession].search_query_count; idx++) {
+		if (cackey_sessions[hSession].search_query[idx].pValue) {
+			free(cackey_sessions[hSession].search_query[idx].pValue);
+		}
+	}
+
 	if (cackey_sessions[hSession].search_query) {
 		free(cackey_sessions[hSession].search_query);
 	}
