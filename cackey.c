@@ -5185,6 +5185,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		return(sign_ret);
 	}
 
+	if (pSignature == NULL) {
+		CACKEY_DEBUG_PRINTF("pSignature specified as NULL, undoing C_SignUpdate()", (unsigned long) sign_ret);
+
+		cackey_sessions[hSession].sign_bufused = start_sign_bufused;
+
+		return(sign_ret);
+	}
+
 	CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i)", CKR_OK);
 
 	return(CKR_OK);
