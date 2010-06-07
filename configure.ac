@@ -6,6 +6,7 @@ AC_PROG_CC
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 AC_AIX
+AC_LANG(C)
 
 dnl Determine this platform
 DC_CHK_OS_INFO
@@ -77,6 +78,63 @@ DC_PCSC
 
 dnl Check for ZLIB libraries
 AC_CHECK_LIB(z, uncompress)
+
+dnl Verify that a basic program will compile
+AC_MSG_CHECKING([if basic PC/SC program works])
+AC_LINK_IFELSE(
+	AC_LANG_PROGRAM([[
+#ifdef HAVE_PCSCLITE_H
+#  include <pcsclite.h>
+#endif
+#ifdef HAVE_WINSCARD_H
+#  include <winscard.h>
+#endif
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#endif
+#ifdef HAVE_INTTYPES_H
+#  include <inttypes.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#  include <stdlib.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#endif
+#ifdef HAVE_PTHREAD_H
+#  include <pthread.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#  include <limits.h>
+#endif
+#ifdef HAVE_STDIO_H
+#  include <stdio.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#  ifdef HAVE_LIBZ
+#    include <zlib.h>
+#  endif
+#endif
+	]], [[
+		LPSCARDHANDLE hCard;
+		SCARDCONTEXT hContext;
+		DWORD dwActiveProtocol;
+		LONG scard_conn_ret, scard_est_context_ret;
+
+		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, &hContext);
+
+		scard_conn_ret = SCardConnect(hContext, "Reader X", SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &hCard, &dwActiveProtocol);
+	]]), [
+		AC_MSG_RESULT(okay)
+	], [
+		AC_MSG_RESULT(failed)
+
+		AC_MSG_FAILURE([simple PC/SC program failed])
+	]
+)
 
 dnl Set version script, to limit the scope of symbols
 DC_SETVERSIONSCRIPT(libcackey.vers)
