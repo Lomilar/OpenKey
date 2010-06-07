@@ -2537,7 +2537,7 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_LABEL (0x%08lx) ...", (unsigned long) curr_attr_type);
 
 				/* XXX: Determine name */
-				ulValueLen = snprintf(ucTmpBuf, sizeof(ucTmpBuf), "Identity #%lu", (unsigned long) identity_num);
+				ulValueLen = snprintf((char *) ucTmpBuf, sizeof(ucTmpBuf), "Identity #%lu", (unsigned long) identity_num);
 				pValue = ucTmpBuf;
 
 				if (ulValueLen >= sizeof(ucTmpBuf)) {
