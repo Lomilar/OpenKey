@@ -14,7 +14,7 @@ dnl Determine how to create shared objects on this platform
 DC_GET_SHOBJFLAGS
 
 ACX_PTHREAD(, [
-	AC_WARN([Can't figure out how to compile with pthreads support, run-time will likely fail.])
+	AC_MSG_WARN([Can not figure out how to compile with pthreads support, run-time will likely fail.])
 ])
 
 dnl Determine how to create static archives on this platform

@@ -1,0 +1,17 @@
+The following files in this directory are the intellectual property of the
+Free Software Foundation and are licensed under the terms of the GNU General
+Public License (GPL):
+	config.guess, config.sub, install-sh
+
+The files in this directory and the "leakcheck" directory are the intellectual
+property of the United States Government.  It is not clear which, if any,
+license is made on them.  In addition, as of 07-JUN-2010 they have not be
+cleared for public release.
+
+The files in the "pkcs11/" directory are licensed under the terms of the
+following licenses:
+	mypkcs11.h : GNU General Public License 2.1.
+	pkcs11.h   : GNU General Public License 2.1.
+	pkcs11f.h  : GNU General Public License 2.1.
+	pkcs11n.h  : Mozilla Public License or GNU General Public License
+	pkcs11t.h  : GNU General Public License 2.1.
