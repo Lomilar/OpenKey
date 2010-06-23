@@ -3233,7 +3233,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 	if (pSlotList == NULL) {
 		*pulCount = slot_count;
 
-		CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i)", CKR_OK);
+		CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i).  Found %lu readers, but not storing IDs (pSlotList == NULL)", CKR_OK, (unsigned long) slot_count);
 
 		return(CKR_OK);
 	}
