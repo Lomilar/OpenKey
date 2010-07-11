@@ -8,6 +8,18 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 	if test "${manualheaders}" != "no"; then
 		CFLAGS="${CFLAGS} -I${manualheaders}"
 		CPPFLAGS="${CPPFLAGS} -I${manualheaders}"
+
+		AC_CHECK_HEADER(wintypes.h, [
+			AC_DEFINE(HAVE_WINTYPES_H, [1], [Define if you have the PCSC-Lite header file (you should)])
+		])
+
+		AC_CHECK_HEADER(pcsclite.h, [
+			AC_DEFINE(HAVE_PCSCLITE_H, [1], [Define if you have the PCSC-Lite header file (you should)])
+		])
+
+		AC_CHECK_HEADER(winscard.h, [
+			AC_DEFINE(HAVE_WINSCARD_H, [1], [Define if you have the PCSC-Lite header file (you should)])
+		])
 	else
 		DC_PCSC_HEADERS_SEARCH
 	fi
