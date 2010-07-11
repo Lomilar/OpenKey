@@ -8,7 +8,7 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 	found_winscard=0
 	found_wintypes=0
 
-	for headerpath in /usr/include /usr/local/include /usr/cac/include; do
+	for headerpath in /usr/include /usr/local/include /usr/cac/include /Developers/SDKs/*/System/Library/Frameworks/PCSC.framework/Versions/A/Headers; do
 		for subdir in smartcard PCSC pcsc pcsclite ""; do
 			headerdir="${headerpath}/${subdir}"
 			CFLAGS="${SAVE_CFLAGS} -I${headerdir}"
@@ -64,9 +64,23 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 
 AC_DEFUN(DC_PCSC_LIBS, [
 	foundlib="0"
-	for lib in pcsclite pcsc-lite pcsc; do
-		AC_CHECK_LIB(${lib}, SCardEstablishContext, [
-			LIBS="${LIBS} -l${lib}"
+
+	SAVELIBS="${LIBS}"
+
+	AC_MSG_CHECKING([for how to link to PC/SC])
+
+	for lib in -lpcsclite -lpcsc-lite -lpcsc /Developer/SDKs/*/System/Library/Frameworks/PCSC.framework/PCSC; do
+		LIBS="${SAVELIBS} ${lib}"
+
+		AC_LINK_IFELSE(AC_LANG_PROGRAM([[
+int SCardEstablishContext(void);
+]], [[
+	int x;
+
+	x = SCardEstablishContext();
+		]]), [
+			AC_MSG_RESULT([${lib}])
+			LIBS="${SAVELIBS} ${lib}"
 
 			foundlib="1"
 
@@ -75,6 +89,8 @@ AC_DEFUN(DC_PCSC_LIBS, [
 	done
 
 	if test "${foundlib}" = "0"; then
+		AC_MSG_RESULT(cant)
+
 		AC_MSG_WARN([unable to find PCSC library, compilation will likely fail.])
 	fi
 
