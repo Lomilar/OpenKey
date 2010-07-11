@@ -2,6 +2,9 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_WINTYPES_H
+#  include <wintypes.h>
+#endif
 #ifdef HAVE_PCSCLITE_H
 #  include <pcsclite.h>
 #endif

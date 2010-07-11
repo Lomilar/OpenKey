@@ -83,6 +83,9 @@ dnl Verify that a basic program will compile
 AC_MSG_CHECKING([if basic PC/SC program works])
 AC_LINK_IFELSE(
 	AC_LANG_PROGRAM([[
+#ifdef HAVE_WINTYPES_H
+#  include <wintypes.h>
+#endif
 #ifdef HAVE_PCSCLITE_H
 #  include <pcsclite.h>
 #endif
