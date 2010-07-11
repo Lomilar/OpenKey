@@ -8,7 +8,7 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 	found_winscard=0
 	found_wintypes=0
 
-	for headerpath in /usr/include /usr/local/include /usr/cac/include /Developers/SDKs/*/System/Library/Frameworks/PCSC.framework/Versions/A/Headers; do
+	for headerpath in /usr/include /usr/local/include /usr/cac/include /Developer/SDKs/*/System/Library/Frameworks/PCSC.framework/Versions/A/Headers; do
 		for subdir in smartcard PCSC pcsc pcsclite ""; do
 			headerdir="${headerpath}/${subdir}"
 			CFLAGS="${SAVE_CFLAGS} -I${headerdir}"
