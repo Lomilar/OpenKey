@@ -1,4 +1,19 @@
 AC_DEFUN(DC_PCSC_HEADERS, [
+	AC_ARG_WITH(pcsc-headers, AC_HELP_STRING([--with-pcsc-headers=<path>], [Specify a path to look for PC/SC Headers]), [
+		manualheaders="${withval}"
+	], [
+		manualheaders="no"
+	])
+
+	if test "${manualheaders}" != "no"; then
+		CFLAGS="${CFLAGS} -I${manualheaders}"
+		CPPFLAGS="${CPPFLAGS} -I${manualheaders}"
+	else
+		DC_PCSC_HEADERS_SEARCH
+	fi
+])
+
+AC_DEFUN(DC_PCSC_HEADERS_SEARCH, [
 	SAVE_CFLAGS="${CFLAGS}"
 	SAVE_CPPFLAGS="${CPPFLAGS}"
 	ADD_CFLAGS=""
@@ -22,6 +37,13 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 			just_found_winscard=0
 			just_found_wintypes=0
 
+			AC_CHECK_HEADER(wintypes.h, [
+				AC_DEFINE(HAVE_WINTYPES_H, [1], [Define if you have the PCSC-Lite header file (you should)])
+
+				found_wintypes=1
+				just_found_wintypes=1
+			])
+
 			AC_CHECK_HEADER(pcsclite.h, [
 				AC_DEFINE(HAVE_PCSCLITE_H, [1], [Define if you have the PCSC-Lite header file (you should)])
 
@@ -36,12 +58,6 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 				just_found_winscard=1
 			])
 
-			AC_CHECK_HEADER(wintypes.h, [
-				AC_DEFINE(HAVE_WINTYPES_H, [1], [Define if you have the PCSC-Lite header file (you should)])
-
-				found_wintypes=1
-				just_found_wintypes=1
-			])
 
 			if test "${just_found_pcsclite}" = 1 -a "${just_found_winscard}" = 1 -a "${just_found_wintypes}" = 1; then
 				ADD_CFLAGS=" -I${headerdir}"
@@ -63,6 +79,20 @@ AC_DEFUN(DC_PCSC_HEADERS, [
 ])
 
 AC_DEFUN(DC_PCSC_LIBS, [
+	AC_ARG_WITH(pcsc-libs, AC_HELP_STRING([--with-pcsc-libs=<libs>], [Specify PC/SC Libraries (e.g., -lpcsclite)]), [
+		manuallibs="${withval}"
+	], [
+		manuallibs="no"
+	])
+
+	if test "${manuallibs}" != "no"; then
+		LIBS="${LIBS} ${manuallibs}"
+	else
+		DC_PCSC_LIBS_SEARCH
+	fi
+])
+
+AC_DEFUN(DC_PCSC_LIBS_SEARCH, [
 	foundlib="0"
 
 	SAVELIBS="${LIBS}"
