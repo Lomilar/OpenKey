@@ -2,7 +2,7 @@
 # Shell Script to make Mac OS X Releases of CACKey
 # Kenneth Van Alstyne
 # kenneth.l.vanalstyne@usace.army.mil
-# 20100711
+# 20100712
 
 # Usage function
 usage() {
@@ -15,7 +15,6 @@ usage() {
 	echo "    all - (Builds for all supported targets)"
 	echo "    clean - (Cleans up)"
 	echo "Run from CACKey Build Root."
-	echo "CACKey Build Root Directory MUST be named 'cackey'"
 	exit $?
 }
 
