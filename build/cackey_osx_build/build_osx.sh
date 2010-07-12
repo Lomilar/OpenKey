@@ -141,7 +141,7 @@ pkgbuild() {
 	else
 		EXT=pkg
 	fi
-	/Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker -d ../cackey_osx_build/${OSX}_pmbuild.pmdoc -o macbuild/pkg/CACKey_${OSX}.${EXT}
+	/Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker -d build/cackey_osx_build/${OSX}_pmbuild.pmdoc -o macbuild/pkg/CACKey_${OSX}.${EXT}
 	tar --create --directory macbuild/pkg/ --file macbuild/pkg/CACKey_${OSX}.${EXT}.tar CACKey_${OSX}.${EXT}
 	gzip -9 macbuild/pkg/CACKey_${OSX}.${EXT}.tar
 	rm -rf macbuild/pkg/CACKey_${OSX}.${EXT}
