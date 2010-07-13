@@ -34,6 +34,15 @@ makedir() {
 		mkdir macbuild/SnowLeopard
 		mkdir macbuild/pkg
 	fi
+	if [ ! -f config.guess ]; then
+		cp /Developer/usr/share/libtool/config.guess .
+	fi
+	if [ ! -f config.sub ]; then
+		cp /Developer/usr/share/libtool/config.sub .
+	fi
+	if [ ! -f install-sh ]; then
+		cp /Developer/usr/share/libtool/install-sh .
+	fi
 }
 
 # Build function for Panther
@@ -155,26 +164,31 @@ case "$1" in
 	;;
 
 	"panther")
+		./autogen.sh
 		panther
 		exit $?
 	;;
 
 	"tiger")
+		./autogen.sh
 		tiger
 		exit $?
 	;;
 
 	"leopard")
+		./autogen.sh
 		leopard
 		exit $?
 	;;
 
 	"snowleopard")
+		./autogen.sh
 		snowleopard
 		exit $?
 	;;
 
 	"all")
+		./autogen.sh
 		panther
 		tiger
 		leopard
