@@ -36,4 +36,4 @@ BEFORE="build/build.sh"
 AFTER=""
 
 # Files matching these (space-seperated) patterns are deleted
-TMPS="*.out HEADER work .project_aliases build *~ *.tmp"
+TMPS="*.out HEADER work .project_aliases build_delete *~ *.tmp"
