@@ -542,6 +542,8 @@ struct cackey_slot {
 	CK_FLAGS token_flags;
 
 	unsigned char *label;
+
+	DWORD protocol;
 };
 
 typedef enum {
@@ -845,12 +847,14 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 
 	/* Connect to reader, if needed */
 	if (!slot->pcsc_card_connected) {
+		slot->protocol = 0;
+
 		CACKEY_DEBUG_PRINTF("SCardConnect(%s) called", slot->pcsc_reader);
-		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
+		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
 
 		if (scard_conn_ret == SCARD_W_UNPOWERED_CARD) {
-			scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_DIRECT, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
-			scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
+			scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_DIRECT, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
+			scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, protocol, SCARD_RESET_CARD, &protocol);
 		}
 
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
@@ -861,6 +865,7 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 
 		slot->pcsc_card_connected = 1;
 		slot->transaction_depth = 0;
+		slot->protocol = protocol;
 	}
 
 	return(CACKEY_PCSC_S_OK);
@@ -1040,6 +1045,7 @@ static cackey_ret cackey_end_transaction(struct cackey_slot *slot) {
 static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class, unsigned char instruction, unsigned char p1, unsigned char p2, unsigned char lc, unsigned char *data, unsigned char le, uint16_t *respcode, unsigned char *respdata, size_t *respdata_len) {
 	uint8_t major_rc, minor_rc;
 	size_t bytes_to_copy, tmp_respdata_len;
+	LPCSCARD_IO_REQUEST pioSendPci;
 	DWORD protocol;
 	DWORD xmit_len, recv_len;
 	LONG scard_xmit_ret, scard_reconn_ret;
@@ -1060,6 +1066,22 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		CACKEY_DEBUG_PRINTF("Unable to connect to card, returning in failure");
 
 		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	/* Determine which protocol to send using */
+	switch (slot->protocol) {
+		case SCARD_PROTOCOL_T0:
+			pioSendPci = SCARD_PCI_T0;
+
+			break;
+		case SCARD_PROTOCOL_T1:
+			pioSendPci = SCARD_PCI_T1;
+
+			break;
+		default:
+			CACKEY_DEBUG_PRINTF("Invalid protocol found, aborting.");
+
+			return(CACKEY_PCSC_E_GENERIC);
 	}
 
 	/* Transmit */
@@ -1089,7 +1111,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	}
 
 	recv_len = sizeof(recv_buf);
-	scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
@@ -1100,8 +1122,25 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
 
-			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
+			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
+				/* Update protocol */
+				slot->protocol = protocol;
+				switch (slot->protocol) {
+					case SCARD_PROTOCOL_T0:
+						pioSendPci = SCARD_PCI_T0;
+
+						break;
+					case SCARD_PROTOCOL_T1:
+						pioSendPci = SCARD_PCI_T1;
+
+						break;
+					default:
+						CACKEY_DEBUG_PRINTF("Invalid protocol found, but too late to do anything about it now -- trying anyway.");
+
+						break;
+				}
+
 				/* Re-establish transaction, if it was present */
 				if (slot->transaction_depth > 0) {
 					slot->transaction_depth--;
@@ -1111,7 +1150,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 				CACKEY_DEBUG_PRINTF("Reset successful, retransmitting");
 
 				recv_len = sizeof(recv_buf);
-				scard_xmit_ret = SCardTransmit(slot->pcsc_card, SCARD_PCI_T0, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+				scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
 
 				if (scard_xmit_ret != SCARD_S_SUCCESS) {
 					CACKEY_DEBUG_PRINTF("Retransmit failed, returning in failure after disconnecting the card (SCardTransmit = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (long) scard_xmit_ret);
@@ -2237,8 +2276,11 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 		if (status_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
 
-			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
+			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
+				/* Update protocol */
+				slot->protocol = protocol;
+
 				/* Re-establish transaction, if it was present */
 				if (slot->transaction_depth > 0) {
 					slot->transaction_depth--;
@@ -5189,7 +5231,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 	}
 
 	if (pSignature == NULL) {
-		CACKEY_DEBUG_PRINTF("pSignature specified as NULL, undoing C_SignUpdate()", (unsigned long) sign_ret);
+		CACKEY_DEBUG_PRINTF("pSignature specified as NULL, undoing C_SignUpdate()");
 
 		cackey_sessions[hSession].sign_bufused = start_sign_bufused;
 
