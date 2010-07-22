@@ -3,6 +3,7 @@
 # Kenneth Van Alstyne
 # kenneth.l.vanalstyne@usace.army.mil
 # 20100712
+CACKEY_VERSION=`cat configure.ac | grep AC_INIT | cut -d " " -f 2 | sed 's_)__'`
 
 # Usage function
 usage() {
@@ -20,6 +21,11 @@ usage() {
 
 # Clean up function
 clean() {
+	for PMDOC in build/cackey_osx_build/*_pmbuild.pmdoc/*.in; do
+		PMDOC="`echo "${PMDOC}" | sed 's_.in__g'`"
+		rm -f "${PMDOC}"
+	done
+	rm -f build/cackey_osx_build/cackey.dylib
 	rm -rf macbuild
 	make distclean
 }
@@ -144,15 +150,22 @@ libbuild() {
 
 # Function to build Mac OS X Packages
 pkgbuild() {
+	rm -f build/cackey_osx_build/cackey.dylib
+	ln macbuild/${OSX}/libcackey.dylib build/cackey_osx_build/cackey.dylib
+	for PMDOC in build/cackey_osx_build/${OSX}_pmbuild.pmdoc/*.in; do
+		PMDOC="`echo "${PMDOC}" | sed 's_.in__g'`"
+		sed "s|@@BUILDROOTDIR@@|$(pwd)|g" ${PMDOC}.in > ${PMDOC}
+	done
 	if [ ${OSX} == "Panther" ]; then
 		EXT=mpkg
 	else
 		EXT=pkg
 	fi
-	/Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker -d build/cackey_osx_build/${OSX}_pmbuild.pmdoc -o macbuild/pkg/CACKey_${OSX}.${EXT}
-	tar --create --directory macbuild/pkg/ --file macbuild/pkg/CACKey_${OSX}.${EXT}.tar CACKey_${OSX}.${EXT}
-	gzip -9 macbuild/pkg/CACKey_${OSX}.${EXT}.tar
-	rm -rf macbuild/pkg/CACKey_${OSX}.${EXT}
+	/Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker -d build/cackey_osx_build/${OSX}_pmbuild.pmdoc -o macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}
+	tar --create --directory macbuild/pkg/ --file macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}.tar CACKey_${CACKEY_VERSION}_${OSX}.${EXT}
+	gzip -9 macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}.tar
+	rm -rf macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}
+	rm -f build/cackey_osx_build/cackey.dylib
 	echo "${OSX} build complete"
 }
 
