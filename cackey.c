@@ -168,10 +168,17 @@
 #define CACKEY_APDU_MTU               250
 
 #ifdef CACKEY_DEBUG
+#  ifdef HAVE_TIME_H
+#    include <time.h>
+static time_t cackey_debug_start_time = 0;
+#    define CACKEY_DEBUG_PRINTTIME { if (cackey_debug_start_time == 0) { cackey_debug_start_time = time(NULL); }; fprintf(stderr, "[%lu]: ", (unsigned long) (time(NULL) - cackey_debug_start_time)); }
+#  else
+#    define CACKEY_DEBUG_PRINTTIME /**/
+#  endif
 
-#  define CACKEY_DEBUG_PRINTF(x...) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); fflush(stderr); }
-#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); fflush(stderr); }
-#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); perror(x); fflush(stderr); }
+#  define CACKEY_DEBUG_PRINTF(x...) { CACKEY_DEBUG_PRINTTIME; fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); fflush(stderr); }
+#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); CACKEY_DEBUG_PRINTTIME; fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); fflush(stderr); }
+#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); CACKEY_DEBUG_PRINTTIME; perror(x); fflush(stderr); }
 #  define free(x) { CACKEY_DEBUG_PRINTF("FREE(%p) (%s)", x, #x); free(x); }
 
 static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
@@ -179,6 +186,7 @@ static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
 
 	retval = malloc(size);
 
+	CACKEY_DEBUG_PRINTTIME;
 	fprintf(stderr, "%s():%i: ", func, line);
 	fprintf(stderr, "MALLOC() = %p", retval);
 	fprintf(stderr, "\n");
@@ -193,6 +201,7 @@ static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func,
 	retval = realloc(ptr, size);
 
 	if (retval != ptr) {
+		CACKEY_DEBUG_PRINTTIME;
 		fprintf(stderr, "%s():%i: ", func, line);
 		fprintf(stderr, "REALLOC(%p) = %p", ptr, retval);
 		fprintf(stderr, "\n");
@@ -211,6 +220,7 @@ static char *CACKEY_DEBUG_FUNC_STRDUP(const char *ptr, const char *func, int lin
 
 	retval = strdup(ptr);
 
+	CACKEY_DEBUG_PRINTTIME;
 	fprintf(stderr, "%s():%i: ", func, line);
 	fprintf(stderr, "STRDUP_MALLOC() = %p", retval);
 	fprintf(stderr, "\n");
@@ -894,8 +904,6 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 
 	/* Connect to reader, if needed */
 	if (!slot->pcsc_card_connected) {
-		slot->protocol = 0;
-
 		CACKEY_DEBUG_PRINTF("SCardConnect(%s) called", slot->pcsc_reader);
 		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
 
@@ -1197,7 +1205,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
 
 	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
-		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will ask calling function to retry...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
+		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will ask calling function to retry (not resetting card)...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 
 		/* Begin Smartcard Transaction */
 		cackey_end_transaction(slot);
@@ -2390,6 +2398,24 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 
 	atr_len = sizeof(atr);
 	status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
+
+	if (status_ret == SCARD_E_INVALID_HANDLE) {
+		CACKEY_DEBUG_PRINTF("SCardStatus() returned SCARD_E_INVALID_HANDLE, marking is not already connected and trying again");
+		slot->pcsc_card_connected = 0;
+		slot->slot_reset = 1;
+		slot->token_flags = CKF_LOGIN_REQUIRED;
+
+		pcsc_connect_ret = cackey_connect_card(slot);
+		if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
+			CACKEY_DEBUG_PRINTF("Unable to connect to card, returning token absent");
+
+			return(CACKEY_PCSC_E_TOKENABSENT);
+		}
+
+		atr_len = sizeof(atr);
+		status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
+	}
+
 	if (status_ret != SCARD_S_SUCCESS) {
 		slot->slot_reset = 1;
 		slot->token_flags = CKF_LOGIN_REQUIRED;
@@ -4512,6 +4538,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		}
 
 		cackey_slots[slotID].slot_reset = 0;
+		cackey_slots[slotID].pcsc_card_connected = 0;
 		cackey_slots[slotID].token_flags = CKF_LOGIN_REQUIRED;
 	}
 

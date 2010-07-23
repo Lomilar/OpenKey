@@ -26,7 +26,7 @@ dnl Determine how to strip executables
 AC_CHECK_TOOL(STRIP, strip)
 
 dnl Check for all required headers
-AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h string.h sys/socket.h sys/types.h sys/un.h unistd.h pthread.h zlib.h limits.h,,[
+AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h string.h sys/socket.h sys/types.h sys/un.h time.h unistd.h pthread.h zlib.h limits.h,,[
 	AC_WARN([Required header missing, compilation will likely fail.])
 ], [
 #ifdef HAVE_ARPA_INET_H
@@ -61,6 +61,9 @@ AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h strin
 #endif
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>
+#endif
+#ifdef HAVE_TIME_H
+#  include <time.h>
 #endif
 #ifdef HAVE_PTHREAD_H
 #  include <pthread.h>
