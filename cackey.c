@@ -844,6 +844,10 @@ static void cackey_mark_slot_reset(struct cackey_slot *slot) {
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
+	if (slot->pcsc_card_connected) {
+		SCardDisconnect(slot->pcsc_card, SCARD_LEAVE_CARD);
+	}
+
 	slot->slot_reset = 1;
 	slot->pcsc_card_connected = 0;
 	slot->token_flags = CKF_LOGIN_REQUIRED;
