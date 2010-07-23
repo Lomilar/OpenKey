@@ -3,6 +3,12 @@
 find . -type f -name '.*.sw?' | xargs rm -f
 find . -type f -name '.nfs*' | xargs rm -f
 
+if [ "${SNAPSHOT}" = "1" ]; then
+	sed "s@\(AC_INIT([^)]*\))@\1.${VERS})@" configure.ac > configure.ac.new
+	cat configure.ac.new > configure.ac
+	rm -f configure.ac.new
+fi
+
 ./autogen.sh || exit 1
 
 if [ ! -x configure ]; then
