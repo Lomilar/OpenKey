@@ -575,7 +575,8 @@ typedef enum {
 	CACKEY_PCSC_E_BADPIN          = -2,
 	CACKEY_PCSC_E_LOCKED          = -3,
 	CACKEY_PCSC_E_NEEDLOGIN       = -4,
-	CACKEY_PCSC_E_TOKENABSENT     = -6
+	CACKEY_PCSC_E_TOKENABSENT     = -6,
+	CACKEY_PCSC_E_RETRY           = -7
 } cackey_ret;
 
 struct cackey_tlv_cardurl {
@@ -813,6 +814,50 @@ static cackey_ret cackey_pcsc_disconnect(void) {
 
 /*
  * SYNPOSIS
+ *     LONG cackey_reconnect_card(struct cackey_slot *slot, DWORD default_protocol, LPDWORD selected_protocol);
+ *
+ * ARGUMENTS
+ *     cackey_slot *slot
+ *         Slot to send commands to
+ *
+ *     DWORD default_protocol
+ *         Protocol to attempt first
+ *
+ *     LPDWORD selected_protocol
+ *         [OUT] Protocol selected
+ *
+ * RETURN VALUE
+ *     The return value from SCardReconnect()
+ *
+ * NOTES
+ *     This function is a wrapper around SCardReconnect()
+ *
+ *     The SCardReconnect() function call will be called first with the
+ *     dwPreferredProtocols of "default_protocol".  If that call returns
+ *     SCARD_E_PROTO_MISMATCH try again with a protocol of T=0, and failing
+ *     that T=1.
+ *
+ */
+static LONG cackey_reconnect_card(struct cackey_slot *slot, DWORD default_protocol, LPDWORD selected_protocol) {
+	LONG scard_conn_ret;
+
+	scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, default_protocol, SCARD_RESET_CARD, selected_protocol);
+
+	if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+		CACKEY_DEBUG_PRINTF("SCardReconnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=0")
+		scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, selected_protocol);
+
+		if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+			CACKEY_DEBUG_PRINTF("SCardReconnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=1")
+			scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1, SCARD_RESET_CARD, selected_protocol);
+		}
+	}
+
+	return(scard_conn_ret);
+}
+
+/*
+ * SYNPOSIS
  *     cackey_ret cackey_connect_card(struct cackey_slot *slot);
  *
  * ARGUMENTS
@@ -879,18 +924,7 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 				}
 			}
 
-			scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, protocol, SCARD_RESET_CARD, &protocol);
-
-			if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
-				CACKEY_DEBUG_PRINTF("SCardReconnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=0")
-				scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
-
-				if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
-					CACKEY_DEBUG_PRINTF("SCardReconnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=1")
-					scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
-				}
-			}
-
+			scard_conn_ret = cackey_reconnect_card(slot, protocol, &protocol);
 		}
 
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
@@ -1100,7 +1134,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	LONG scard_xmit_ret, scard_reconn_ret;
 	BYTE xmit_buf[1024], recv_buf[1024];
 	int pcsc_connect_ret, pcsc_getresp_ret;
-	int idx, retry;
+	int idx;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -1160,15 +1194,15 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	}
 
 	recv_len = sizeof(recv_buf);
-	for (retry = 0; retry < 10; retry++) {
-		CACKEY_DEBUG_PRINTF("Calling SCardTransmit()");
-		scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
 
-		if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
-			CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will retry...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
-		} else {
-			break;
-		}
+	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
+		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will ask calling function to retry...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
+
+		/* Begin Smartcard Transaction */
+		cackey_end_transaction(slot);
+
+		return(CACKEY_PCSC_E_RETRY);
 	}
 
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
@@ -1180,7 +1214,8 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
 
-			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
+			scard_reconn_ret = cackey_reconnect_card(slot, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &protocol);
+
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
 				/* Update protocol */
 				slot->protocol = protocol;
@@ -1306,11 +1341,16 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		}
 
 		pcsc_getresp_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_GET_RESPONSE, 0x00, 0x00, 0, NULL, minor_rc, respcode, respdata, &tmp_respdata_len);
+
 		if (pcsc_getresp_ret != CACKEY_PCSC_S_OK) {
 			CACKEY_DEBUG_PRINTF("Buffer read failed!  Returning in failure");
 
 			/* End Smartcard Transaction */
 			cackey_end_transaction(slot);
+
+			if (pcsc_getresp_ret == CACKEY_PCSC_E_RETRY) {
+				return(CACKEY_PCSC_E_RETRY);
+			}
 
 			return(CACKEY_PCSC_E_GENERIC);
 		}
@@ -1371,12 +1411,20 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
  *
  */
 static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffer, size_t count, unsigned char t_or_v, size_t initial_offset) {
+	unsigned char *init_buffer;
+	size_t init_count;
+	size_t init_initial_offset;
+
 	size_t offset = 0, max_offset, max_count;
 	unsigned char cmd[2];
 	uint16_t respcode;
 	int send_ret;
 
 	CACKEY_DEBUG_PRINTF("Called.");
+
+	init_buffer = buffer;
+	init_count = count;
+	init_initial_offset = initial_offset;
 
 	max_offset = count;
 	max_count = CACKEY_APDU_MTU;
@@ -1404,6 +1452,13 @@ static ssize_t cackey_read_buffer(struct cackey_slot *slot, unsigned char *buffe
 		cmd[1] = count;
 
 		send_ret = cackey_send_apdu(slot, GSCIS_CLASS_GLOBAL_PLATFORM, GSCIS_INSTR_READ_BUFFER, ((initial_offset + offset) >> 8) & 0xff, (initial_offset + offset) & 0xff, sizeof(cmd), cmd, 0x00, &respcode, buffer + offset, &count);
+
+		if (send_ret == CACKEY_PCSC_E_RETRY) {
+			CACKEY_DEBUG_PRINTF("ADPU Sending failed, retrying read buffer");
+
+			return(cackey_read_buffer(slot, init_buffer, init_count, t_or_v, init_initial_offset));
+		}
+
 		if (send_ret != CACKEY_PCSC_S_OK) {
 			if (respcode == 0x6A86) {
 				if (max_count == 1) {
@@ -1474,6 +1529,13 @@ static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *
 	CACKEY_DEBUG_PRINTBUF("Selecting applet:", aid, aid_len);
 
 	send_ret = cackey_send_apdu(slot, GSCIS_CLASS_ISO7816, GSCIS_INSTR_SELECT, GSCIS_PARAM_SELECT_APPLET, 0x00, aid_len, aid, 0x00, NULL, NULL, NULL);
+
+	if (send_ret == CACKEY_PCSC_E_RETRY) {
+		CACKEY_DEBUG_PRINTF("ADPU Sending failed, retrying select applet");
+
+		return(cackey_select_applet(slot, aid, aid_len));
+	}
+
 	if (send_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Failed to open applet, returning in failure");
 
@@ -2335,7 +2397,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 		if (status_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
 
-			scard_reconn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
+			scard_reconn_ret = cackey_reconnect_card(slot, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &protocol);
 			if (scard_reconn_ret == SCARD_S_SUCCESS) {
 				/* Update protocol */
 				slot->protocol = protocol;
