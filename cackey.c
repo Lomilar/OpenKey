@@ -4572,6 +4572,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 		}
 
 		cackey_mark_slot_reset(&cackey_slots[slotID]);
+		cackey_slots[slotID].slot_reset = 0;
 	}
 
 	if (cackey_sessions[hSession].identities == NULL) {
