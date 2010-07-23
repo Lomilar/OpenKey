@@ -1,0 +1,7 @@
+<pkg-contents spec="1.12">
+	<f n="libcackey.dylib" o="root" g="admin" p="33261" pt="@@BUILDROOTDIR@@/macbuild/Panther/libcackey.dylib" m="true" t="file">
+		<mod>owner</mod>
+		<mod>mode</mod>
+		<mod>group</mod>
+	</f>
+</pkg-contents>
