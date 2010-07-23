@@ -536,6 +536,7 @@ struct cackey_slot {
 	SCARDHANDLE pcsc_card;
 
 	int transaction_depth;
+	int transaction_need_hw_lock;
 
 	int slot_reset;
 
@@ -680,6 +681,7 @@ static void cackey_slots_disconnect_all(void) {
 
 		cackey_slots[idx].pcsc_card_connected = 0;
 		cackey_slots[idx].transaction_depth = 0;
+		cackey_slots[idx].transaction_need_hw_lock = 0;
 
 		if (cackey_slots[idx].active) {
 			CACKEY_DEBUG_PRINTF("Marking active slot %lu as being reset", (unsigned long) idx);
@@ -852,9 +854,43 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 		CACKEY_DEBUG_PRINTF("SCardConnect(%s) called", slot->pcsc_reader);
 		scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
 
+		if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+			CACKEY_DEBUG_PRINTF("SCardConnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=0")
+			scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
+
+			if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+				CACKEY_DEBUG_PRINTF("SCardConnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=1")
+				scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
+			}
+		}
+
 		if (scard_conn_ret == SCARD_W_UNPOWERED_CARD) {
+			CACKEY_DEBUG_PRINTF("SCardConnect() returned SCARD_W_UNPOWERED_CARD, trying to re-connect...");
+
 			scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_DIRECT, SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
+
+			if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+				CACKEY_DEBUG_PRINTF("SCardConnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=0")
+				scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &slot->pcsc_card, &protocol);
+
+				if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+					CACKEY_DEBUG_PRINTF("SCardConnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=1")
+					scard_conn_ret = SCardConnect(*cackey_pcsc_handle, slot->pcsc_reader, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1, &slot->pcsc_card, &protocol);
+				}
+			}
+
 			scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, protocol, SCARD_RESET_CARD, &protocol);
+
+			if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+				CACKEY_DEBUG_PRINTF("SCardReconnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=0")
+				scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, SCARD_RESET_CARD, &protocol);
+
+				if (scard_conn_ret == SCARD_E_PROTO_MISMATCH) {
+					CACKEY_DEBUG_PRINTF("SCardReconnect() returned SCARD_E_PROTO_MISMATCH, trying with just T=1")
+					scard_conn_ret = SCardReconnect(slot->pcsc_card, SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1, SCARD_RESET_CARD, &protocol);
+				}
+			}
+
 		}
 
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
@@ -865,6 +901,7 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 
 		slot->pcsc_card_connected = 1;
 		slot->transaction_depth = 0;
+		slot->transaction_need_hw_lock = 0;
 		slot->protocol = protocol;
 	}
 
@@ -902,11 +939,13 @@ static cackey_ret cackey_begin_transaction(struct cackey_slot *slot) {
 
 	slot->transaction_depth++;
 
-	if (slot->transaction_depth > 1) {
+	if (slot->transaction_depth > 1 && !slot->transaction_need_hw_lock) {
 		CACKEY_DEBUG_PRINTF("Already in a transaction, performing no action (new depth = %i)", slot->transaction_depth);
 
 		return(CACKEY_PCSC_S_OK);
 	}
+
+	slot->transaction_need_hw_lock = 0;
 
 	scard_trans_ret = SCardBeginTransaction(slot->pcsc_card);
 	if (scard_trans_ret != SCARD_S_SUCCESS) {
@@ -942,7 +981,17 @@ static cackey_ret cackey_end_transaction(struct cackey_slot *slot) {
 	CACKEY_DEBUG_PRINTF("Called.");
 
 	if (!slot->pcsc_card_connected) {
-		CACKEY_DEBUG_PRINTF("Card is not connected, unable to end transaction");
+		CACKEY_DEBUG_PRINTF("Card is not connected, unable to end transaction on card");
+
+		if (slot->transaction_depth > 0) {
+			CACKEY_DEBUG_PRINTF("Decreasing transaction depth and asking for a hardware lock on the next begin transaction (current depth = %i)", slot->transaction_depth);
+
+			slot->transaction_depth--;
+
+			if (slot->transaction_depth > 0) {
+				slot->transaction_need_hw_lock = 1;
+			}
+		}
 
 		return(CACKEY_PCSC_E_GENERIC);
 	}
@@ -958,7 +1007,7 @@ static cackey_ret cackey_end_transaction(struct cackey_slot *slot) {
 	if (slot->transaction_depth > 0) {
 		CACKEY_DEBUG_PRINTF("Transactions still in progress, not terminating on-card Transaction (current depth = %i)", slot->transaction_depth);
 
-		return(CACKEY_PCSC_E_GENERIC);
+		return(CACKEY_PCSC_S_OK);
 	}
 
 	scard_trans_ret = SCardEndTransaction(slot->pcsc_card, SCARD_LEAVE_CARD);
@@ -1051,7 +1100,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	LONG scard_xmit_ret, scard_reconn_ret;
 	BYTE xmit_buf[1024], recv_buf[1024];
 	int pcsc_connect_ret, pcsc_getresp_ret;
-	int idx;
+	int idx, retry;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -1111,12 +1160,21 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	}
 
 	recv_len = sizeof(recv_buf);
-	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+	for (retry = 0; retry < 10; retry++) {
+		CACKEY_DEBUG_PRINTF("Calling SCardTransmit()");
+		scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+
+		if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
+			CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will retry...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
+		} else {
+			break;
+		}
+	}
+
 	if (scard_xmit_ret != SCARD_S_SUCCESS) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
-		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
 
-		slot->transaction_depth = 0;
+		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
 		slot->slot_reset = 1;
 
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
@@ -1144,6 +1202,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 				/* Re-establish transaction, if it was present */
 				if (slot->transaction_depth > 0) {
 					slot->transaction_depth--;
+					slot->transaction_need_hw_lock = 1;
 					cackey_begin_transaction(slot);
 				}
 
@@ -2284,6 +2343,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 				/* Re-establish transaction, if it was present */
 				if (slot->transaction_depth > 0) {
 					slot->transaction_depth--;
+					slot->transaction_need_hw_lock = 1;
 					cackey_begin_transaction(slot);
 				}
 
@@ -3027,6 +3087,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_slots[idx].active = 0;
 		cackey_slots[idx].pcsc_reader = NULL;
 		cackey_slots[idx].transaction_depth = 0;
+		cackey_slots[idx].transaction_need_hw_lock = 0;
 		cackey_slots[idx].slot_reset = 0;
 		cackey_slots[idx].token_flags = 0;
 		cackey_slots[idx].label = NULL;
@@ -3242,6 +3303,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 						cackey_slots[currslot].pcsc_reader = strdup(pcsc_readers);
 						cackey_slots[currslot].pcsc_card_connected = 0;
 						cackey_slots[currslot].transaction_depth = 0;
+						cackey_slots[currslot].transaction_need_hw_lock = 0;
 						cackey_slots[currslot].slot_reset = 1;
 						cackey_slots[currslot].token_flags = CKF_LOGIN_REQUIRED;
 						cackey_slots[currslot].label = NULL;
