@@ -824,6 +824,37 @@ static cackey_ret cackey_pcsc_disconnect(void) {
 
 /*
  * SYNPOSIS
+ *     void cackey_mark_slot_reset(struct cackey_slot *slot);
+ *
+ * ARGUMENTS
+ *     None
+ *
+ * RETURN VALUE
+ *     None
+ *
+ * NOTES
+ *     This function marks a slot has having been reset, to later be cleaned up.
+ *     Cleanup only happens when a PKCS#11 client calls C_FindObjectsInit.
+ *
+ */
+static void cackey_mark_slot_reset(struct cackey_slot *slot) {
+	if (slot == NULL) {
+		return;
+	}
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	slot->slot_reset = 1;
+	slot->pcsc_card_connected = 0;
+	slot->token_flags = CKF_LOGIN_REQUIRED;
+
+	CACKEY_DEBUG_PRINTF("Returning.");
+
+	return;
+}
+
+/*
+ * SYNPOSIS
  *     LONG cackey_reconnect_card(struct cackey_slot *slot, DWORD default_protocol, LPDWORD selected_protocol);
  *
  * ARGUMENTS
@@ -1217,7 +1248,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 
 		CACKEY_DEBUG_PRINTF("Marking slot as having been reset");
-		slot->slot_reset = 1;
+		cackey_mark_slot_reset(slot);
 
 		if (scard_xmit_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
@@ -2179,7 +2210,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 			if (respcode == 0x6982) {
 				CACKEY_DEBUG_PRINTF("Security status not satisified.  Returning NEEDLOGIN");
 
-				slot->slot_reset = 1;
+				cackey_mark_slot_reset(slot);
 				slot->token_flags = CKF_LOGIN_REQUIRED;
 
 				return(CACKEY_PCSC_E_NEEDLOGIN);
@@ -2188,7 +2219,7 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 			if (send_ret == CACKEY_PCSC_E_TOKENABSENT) {
 				CACKEY_DEBUG_PRINTF("Token absent.  Returning TOKENABSENT");
 
-				slot->slot_reset = 1;
+				cackey_mark_slot_reset(slot);
 				slot->token_flags = CKF_LOGIN_REQUIRED;
 
 				return(CACKEY_PCSC_E_TOKENABSENT);
@@ -2401,9 +2432,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 
 	if (status_ret == SCARD_E_INVALID_HANDLE) {
 		CACKEY_DEBUG_PRINTF("SCardStatus() returned SCARD_E_INVALID_HANDLE, marking is not already connected and trying again");
-		slot->pcsc_card_connected = 0;
-		slot->slot_reset = 1;
-		slot->token_flags = CKF_LOGIN_REQUIRED;
+		cackey_mark_slot_reset(slot);
 
 		pcsc_connect_ret = cackey_connect_card(slot);
 		if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
@@ -2417,8 +2446,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	}
 
 	if (status_ret != SCARD_S_SUCCESS) {
-		slot->slot_reset = 1;
-		slot->token_flags = CKF_LOGIN_REQUIRED;
+		cackey_mark_slot_reset(slot);
 
 		if (status_ret == SCARD_W_RESET_CARD) {
 			CACKEY_DEBUG_PRINTF("Reset required, please hold...");
@@ -3395,6 +3423,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 						cackey_slots[currslot].slot_reset = 1;
 						cackey_slots[currslot].token_flags = CKF_LOGIN_REQUIRED;
 						cackey_slots[currslot].label = NULL;
+
+						cackey_mark_slot_reset(&cackey_slots[currslot]);
 					}
 					currslot++;
 
@@ -4537,9 +4567,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 			cackey_slots[slotID].label = NULL;
 		}
 
-		cackey_slots[slotID].slot_reset = 0;
-		cackey_slots[slotID].pcsc_card_connected = 0;
-		cackey_slots[slotID].token_flags = CKF_LOGIN_REQUIRED;
+		cackey_mark_slot_reset(&cackey_slots[slotID]);
 	}
 
 	if (cackey_sessions[hSession].identities == NULL) {
