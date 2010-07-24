@@ -163,8 +163,10 @@ libbuild() {
 pkgbuild() {
 	rm -f build/cackey_osx_build/cackey.dylib
 	ln macbuild/${OSX}/libcackey.dylib build/cackey_osx_build/cackey.dylib
+	# When Template build is ready to go, change ${OSX} to Template in line below
 	for PMDOC in build/cackey_osx_build/${OSX}_pmbuild.pmdoc/*.in; do
 		PMDOC="`echo "${PMDOC}" | sed 's_.in__g'`"
+		UUID="`python -c 'import uuid; print uuid.uuid1()' | dd conv=ucase 2>/dev/null`"
 		sed "s|@@BUILDROOTDIR@@|$(pwd)|g" ${PMDOC}.in > ${PMDOC}
 		sed "s|@@OSXVERSION@@|${OSX}|g" ${PMDOC}.in > ${PMDOC}
 		sed "s|@@UUID@@|${UUID}|g" ${PMDOC}.in > ${PMDOC}
