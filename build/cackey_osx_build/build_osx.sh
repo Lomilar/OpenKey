@@ -2,7 +2,6 @@
 # Shell Script to make Mac OS X Releases of CACKey
 # Kenneth Van Alstyne
 # kenneth.l.vanalstyne@usace.army.mil
-# 20100712
 CACKEY_VERSION=`cat configure.ac | grep AC_INIT | cut -d " " -f 2 | sed 's_)__'`
 
 # Usage function
@@ -57,6 +56,9 @@ panther() {
 	HEADERS=/Developer/SDKs/MacOSX10.3.9.sdk/System/Library/Frameworks/PCSC.framework/Versions/A/Headers/
 	LIBRARY=/Developer/SDKs/MacOSX10.3.9.sdk/System/Library/Frameworks/PCSC.framework/PCSC
 	OSX=Panther
+	PKTARGETOS=1
+	NEXTOSXVER=10.4
+	CUROSXVER=10.3
 	HOST=powerpc-apple-darwin7
 	make distclean
 	ARCH="ppc -mcpu=G3"
@@ -77,6 +79,9 @@ tiger() {
 	DLIB=""
 	DARCHLIST=""
 	OSX=Tiger
+	PKTARGETOS=2
+	NEXTOSXVER=10.5
+	CUROSXVER=10.4
 	for HOST in powerpc-apple-darwin8 i386-apple-darwin8; do
 		genbuild
 	done
@@ -94,6 +99,9 @@ leopard() {
 	DLIB=""
 	DARCHLIST=""
 	OSX=Leopard
+	PKTARGETOS=3
+	NEXTOSXVER=10.6
+	CUROSXVER=10.5
 	for HOST in powerpc-apple-darwin9 i386-apple-darwin9; do
 		genbuild
 	done
@@ -111,6 +119,9 @@ snowleopard() {
 	DLIB=""
 	DARCHLIST=""
 	OSX=SnowLeopard
+	PKTARGETOS=3
+	NEXTOSXVER=10.7
+	CUROSXVER=10.6
 	for HOST in i386-apple-darwin10 x86_64-apple-darwin10; do
 		genbuild
 	done
@@ -155,6 +166,11 @@ pkgbuild() {
 	for PMDOC in build/cackey_osx_build/${OSX}_pmbuild.pmdoc/*.in; do
 		PMDOC="`echo "${PMDOC}" | sed 's_.in__g'`"
 		sed "s|@@BUILDROOTDIR@@|$(pwd)|g" ${PMDOC}.in > ${PMDOC}
+		sed "s|@@OSXVERSION@@|${OSX}|g" ${PMDOC}.in > ${PMDOC}
+		sed "s|@@UUID@@|${UUID}|g" ${PMDOC}.in > ${PMDOC}
+		sed "s|@@TARGETOS@@|${PKTARGETOS}|g" ${PMDOC}.in > ${PMDOC}
+		sed "s|@@NEXTOSXVER@@|${NEXTOSXVER}|g" ${PMDOC}.in > ${PMDOC}
+		sed "s|@@CUROSXVER@@|${CUROSXVER}|g" ${PMDOC}.in > ${PMDOC}
 	done
 	if [ ${OSX} == "Panther" ]; then
 		EXT=mpkg
