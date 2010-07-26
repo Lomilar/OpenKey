@@ -20,12 +20,9 @@ usage() {
 
 # Clean up function
 clean() {
-	for PMDOC in build/cackey_osx_build/*_pmbuild.pmdoc/*.in; do
-		PMDOC="`echo "${PMDOC}" | sed 's_.in__g'`"
-		rm -f "${PMDOC}"
-	done
 	rm -f build/cackey_osx_build/cackey.dylib
 	rm -rf macbuild
+	rm -rf build/cackey_osx_build/*.pmdoc
 	make distclean
 }
 
@@ -36,7 +33,7 @@ makedir() {
 		mkdir macbuild/Panther
 		mkdir macbuild/Tiger
 		mkdir macbuild/Leopard
-		mkdir macbuild/SnowLeopard
+		mkdir macbuild/Snowleopard
 		mkdir macbuild/pkg
 	fi
 	if [ ! -f config.guess ]; then
@@ -118,7 +115,7 @@ snowleopard() {
 	ARCHLIST=""
 	DLIB=""
 	DARCHLIST=""
-	OSX=SnowLeopard
+	OSX=Snowleopard
 	PKTARGETOS=3
 	NEXTOSXVER=10.7
 	CUROSXVER=10.6
@@ -163,21 +160,28 @@ libbuild() {
 pkgbuild() {
 	rm -f build/cackey_osx_build/cackey.dylib
 	ln macbuild/${OSX}/libcackey.dylib build/cackey_osx_build/cackey.dylib
-	# When Template build is ready to go, change ${OSX} to Template in line below
-	for PMDOC in build/cackey_osx_build/${OSX}_pmbuild.pmdoc/*.in; do
-		PMDOC="`echo "${PMDOC}" | sed 's_.in__g'`"
+	for PMDOC in build/cackey_osx_build/Template_pmbuild/*.in; do
+		PMDOC="`echo "${PMDOC}" | sed 's|l.in|l|g' | sed 's|build/cackey_osx_build/Template_pmbuild/||g'`"
 		UUID="`python -c 'import uuid; print uuid.uuid1()' | dd conv=ucase 2>/dev/null`"
-		sed "s|@@BUILDROOTDIR@@|$(pwd)|g" ${PMDOC}.in > ${PMDOC}
-		sed "s|@@OSXVERSION@@|${OSX}|g" ${PMDOC}.in > ${PMDOC}
-		sed "s|@@UUID@@|${UUID}|g" ${PMDOC}.in > ${PMDOC}
-		sed "s|@@TARGETOS@@|${PKTARGETOS}|g" ${PMDOC}.in > ${PMDOC}
-		sed "s|@@NEXTOSXVER@@|${NEXTOSXVER}|g" ${PMDOC}.in > ${PMDOC}
-		sed "s|@@CUROSXVER@@|${CUROSXVER}|g" ${PMDOC}.in > ${PMDOC}
+		mkdir -p build/cackey_osx_build/${OSX}_pmbuild.pmdoc
+		sed "s|@@BUILDROOTDIR@@|$(pwd)|g" build/cackey_osx_build/Template_pmbuild/${PMDOC}.in > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
+		sed "s|@@OSXVERSION@@|${OSX}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
+		sed "s|@@UUID@@|${UUID}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
+		sed "s|@@TARGETOS@@|${PKTARGETOS}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
+		sed "s|@@NEXTOSXVER@@|${NEXTOSXVER}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
+		sed "s|@@CUROSXVER@@|${CUROSXVER}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
+		mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
 	done
 	if [ ${OSX} == "Panther" ]; then
 		EXT=mpkg
+		cat build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml | grep -v -i require > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new
+		mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml
 	else
 		EXT=pkg
+	fi
+	if [ ${OSX} == "Snowleopard" ]; then
+		cat build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml | sed 's|for Mac OS X Snowleopard|for Mac OS X SnowLeopard|g' > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new
+	mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml
 	fi
 	/Developer/Applications/Utilities/PackageMaker.app/Contents/MacOS/PackageMaker -d build/cackey_osx_build/${OSX}_pmbuild.pmdoc -o macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}
 	tar --create --directory macbuild/pkg/ --file macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}.tar CACKey_${CACKEY_VERSION}_${OSX}.${EXT}
