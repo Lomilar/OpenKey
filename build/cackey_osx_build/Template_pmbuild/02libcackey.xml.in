@@ -13,11 +13,17 @@
 		<packageStore type="internal"></packageStore>
 		<mod>parent</mod>
 		<mod>scripts.postinstall.path</mod>
+		<mod>scripts.scriptsDirectoryPath.isRelativeType</mod>
+		<mod>scripts.scriptsDirectoryPath.path</mod>
 		<mod>relocatable</mod>
 		<mod>installTo.path</mod>
 		<mod>installFrom.path</mod>
 		<mod>installTo</mod>
 	</config>
+	<scripts>
+		<postinstall mod="true">@@BUILDROOTDIR@@/build/cackey_osx_build/Template_pmbuild/scripts/02libcackey-post.sh</postinstall>
+		<scripts-dir mod="true">@@BUILDROOTDIR@@/build/cackey_osx_build/Template_pmbuild/scripts</scripts-dir>
+	</scripts>
 	<contents>
 		<file-list>02libcackey-contents.xml</file-list>
 		<filter>/CVS$</filter>
