@@ -125,7 +125,6 @@ int main_pkcs11(void) {
 	initargs.UnlockMutex = NULL;
 	initargs.flags = CKF_OS_LOCKING_OK;
 	initargs.pReserved = NULL;
-	initargs.LibraryParameters = NULL;
 
 	chk_rv = C_Initialize(&initargs);
 	if (chk_rv != CKR_OK) {

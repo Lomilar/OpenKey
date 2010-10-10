@@ -1025,7 +1025,6 @@ typedef struct CK_C_INITIALIZE_ARGS {
   CK_LOCKMUTEX LockMutex;
   CK_UNLOCKMUTEX UnlockMutex;
   CK_FLAGS flags;
-  CK_VOID_PTR LibraryParameters;
   CK_VOID_PTR pReserved;
 } CK_C_INITIALIZE_ARGS;
 

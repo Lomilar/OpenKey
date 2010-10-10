@@ -3179,12 +3179,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 				return(CKR_ARGUMENTS_BAD);
 			}
 		}
-
-		if (args->pReserved != NULL) {
-			CACKEY_DEBUG_PRINTF("Error. pReserved is not NULL.");
-
-			return(CKR_ARGUMENTS_BAD);
-		}
 	} else {
 		cackey_args.CreateMutex = NULL;
 		cackey_args.DestroyMutex = NULL;
@@ -4978,6 +4972,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptInit)(CK_SESSION_HANDLE hSession, CK_MECHANIS
 CK_DEFINE_FUNCTION(CK_RV, C_Decrypt)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pEncryptedData, CK_ULONG ulEncryptedDataLen, CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen) {
 	CK_ULONG datalen_update, datalen_final;
 	CK_RV decrypt_ret;
+	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -4998,6 +4993,42 @@ CK_DEFINE_FUNCTION(CK_RV, C_Decrypt)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pEn
 	decrypt_ret = C_DecryptUpdate(hSession, pEncryptedData, ulEncryptedDataLen, pData, &datalen_update);
 	if (decrypt_ret != CKR_OK) {
 		CACKEY_DEBUG_PRINTF("Error.  DecryptUpdate() returned failure (rv = %lu).", (unsigned long) decrypt_ret);
+
+		if (decrypt_ret != CKR_BUFFER_TOO_SMALL) {
+			/* Terminate decryption operation */
+
+			mutex_retval = cackey_mutex_lock(cackey_biglock);
+			if (mutex_retval != 0) {
+				CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
+
+				return(CKR_GENERAL_ERROR);
+			}
+
+			if (!cackey_sessions[hSession].active) {
+				cackey_mutex_unlock(cackey_biglock);
+
+				CACKEY_DEBUG_PRINTF("Error.  Session not active.");
+		
+				return(CKR_SESSION_HANDLE_INVALID);
+			}
+
+			if (!cackey_sessions[hSession].decrypt_active) {
+				cackey_mutex_unlock(cackey_biglock);
+
+				CACKEY_DEBUG_PRINTF("Error.  Decrypt not active.");
+		
+				return(CKR_OPERATION_NOT_INITIALIZED);
+			}
+
+			cackey_sessions[hSession].decrypt_active = 0;
+
+			mutex_retval = cackey_mutex_unlock(cackey_biglock);
+			if (mutex_retval != 0) {
+				CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
+
+				return(CKR_GENERAL_ERROR);
+			}
+		}
 
 		return(decrypt_ret);
 	}
@@ -5375,6 +5406,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) {
 	unsigned long start_sign_bufused;
 	CK_RV sign_ret;
+	int mutex_retval;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -5395,6 +5427,40 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 	sign_ret = C_SignUpdate(hSession, pData, ulDataLen);
 	if (sign_ret != CKR_OK) {
 		CACKEY_DEBUG_PRINTF("Error.  SignUpdate() returned failure (rv = %lu).", (unsigned long) sign_ret);
+
+		if (sign_ret != CKR_BUFFER_TOO_SMALL) {
+			mutex_retval = cackey_mutex_lock(cackey_biglock);
+			if (mutex_retval != 0) {
+				CACKEY_DEBUG_PRINTF("Error.  Locking failed.");
+
+				return(CKR_GENERAL_ERROR);
+			}
+
+			if (!cackey_sessions[hSession].active) {
+				cackey_mutex_unlock(cackey_biglock);
+
+				CACKEY_DEBUG_PRINTF("Error.  Session not active.");
+		
+				return(CKR_SESSION_HANDLE_INVALID);
+			}
+
+			if (!cackey_sessions[hSession].sign_active) {
+				cackey_mutex_unlock(cackey_biglock);
+
+				CACKEY_DEBUG_PRINTF("Error.  Sign not active.");
+		
+				return(CKR_OPERATION_NOT_INITIALIZED);
+			}
+
+			cackey_sessions[hSession].sign_active = 0;
+
+			mutex_retval = cackey_mutex_unlock(cackey_biglock);
+			if (mutex_retval != 0) {
+				CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
+
+				return(CKR_GENERAL_ERROR);
+			}
+		}
 
 		return(sign_ret);
 	}
