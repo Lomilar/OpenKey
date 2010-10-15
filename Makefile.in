@@ -53,6 +53,8 @@ install: libcackey.@SHOBJEXT@
 
 clean:
 	rm -f libcackey.@SHOBJEXT@ libcackey_g.@SHOBJEXT@
+	rm -f libcackey.@SHOBJEXT@.def libcackey_g.@SHOBJEXT@.def
+	rm -f libcackey.@SHOBJEXT@.a libcackey_g.@SHOBJEXT@.a
 	rm -f cackey.o asn1-x509.o cackey_g.o asn1-x509_g.o
 	rm -f test
 	rm -f splint-cackey.txt

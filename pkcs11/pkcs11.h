@@ -223,6 +223,9 @@ extern "C" {
  * #endif
  */
 
+#ifdef _WIN32
+#pragma pack(push, cryptoki, 1)
+#endif
 
 /* All the various Cryptoki types and #define'd values are in the
  * file pkcs11t.h. */
@@ -289,6 +292,10 @@ struct CK_FUNCTION_LIST {
 #include "pkcs11f.h"
 
 };
+
+#ifdef _WIN32
+#pragma pack(pop, cryptoki)
+#endif
 
 #undef CK_PKCS11_FUNCTION_INFO
 

@@ -167,6 +167,11 @@
 /** Do not set this above 250 **/
 #define CACKEY_APDU_MTU               250
 
+/* ATR If not available */
+#ifndef MAX_ATR_SIZE
+#define MAX_ATR_SIZE 1024
+#endif
+
 #ifdef CACKEY_DEBUG
 #  ifdef HAVE_TIME_H
 #    include <time.h>
