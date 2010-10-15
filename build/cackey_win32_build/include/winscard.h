@@ -69,12 +69,15 @@ typedef const VOID *LPCVOID;
  * the global.
  */
 #if !defined(_M_CEE_PURE)
+static const SCARD_IO_REQUEST static_g_rgSCardT0Pci = { SCARD_PROTOCOL_T0, 8 };
+static const SCARD_IO_REQUEST static_g_rgSCardT1Pci = { SCARD_PROTOCOL_T1, 8 };
+
 WINSCARDDATA extern const SCARD_IO_REQUEST
     g_rgSCardT0Pci,
     g_rgSCardT1Pci,
     g_rgSCardRawPci;
-#define SCARD_PCI_T0  (&g_rgSCardT0Pci)
-#define SCARD_PCI_T1  (&g_rgSCardT1Pci)
+#define SCARD_PCI_T0  (&static_g_rgSCardT0Pci)
+#define SCARD_PCI_T1  (&static_g_rgSCardT1Pci)
 #define SCARD_PCI_RAW (&g_rgSCardRawPci)
 #endif
 
