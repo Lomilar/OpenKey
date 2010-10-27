@@ -121,11 +121,7 @@ snowleopard() {
 	DLIB=""
 	DARCHLIST=""
 	OSX=Snowleopard
-	if [ "`uname -r | cut -d . -f 1`" -lt "10" ]; then
-		PKTARGETOS=3
-	else
-		PKTARGETOS=4
-	fi
+	PKTARGETOS=3
 	NEXTOSXVER=10.7
 	CUROSXVER=10.6
 	for HOST in i386-apple-darwin10 x86_64-apple-darwin10; do
