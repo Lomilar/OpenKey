@@ -28,6 +28,11 @@ clean() {
 
 # Directory creation function
 makedir() {
+	if [ "`uname -r | cut -d . -f 1`" -lt "10" ]; then
+		LIBTOOLDIR=/Developer/usr/share/libtool
+	else
+		LIBTOOLDIR=/Developer/usr/share/libtool/config
+	fi
 	if [ ! -d macbuild ]; then
 		mkdir macbuild
 		mkdir macbuild/Panther
@@ -37,13 +42,13 @@ makedir() {
 		mkdir macbuild/pkg
 	fi
 	if [ ! -f config.guess ]; then
-		cp /Developer/usr/share/libtool/config.guess .
+		cp ${LIBTOOLDIR}/config.guess .
 	fi
 	if [ ! -f config.sub ]; then
-		cp /Developer/usr/share/libtool/config.sub .
+		cp ${LIBTOOLDIR}/config.sub .
 	fi
 	if [ ! -f install-sh ]; then
-		cp /Developer/usr/share/libtool/install-sh .
+		cp ${LIBTOOLDIR}/install-sh .
 	fi
 }
 
@@ -116,7 +121,11 @@ snowleopard() {
 	DLIB=""
 	DARCHLIST=""
 	OSX=Snowleopard
-	PKTARGETOS=3
+	if [ "`uname -r | cut -d . -f 1`" -lt "10" ]; then
+		PKTARGETOS=3
+	else
+		PKTARGETOS=4
+	fi
 	NEXTOSXVER=10.7
 	CUROSXVER=10.6
 	for HOST in i386-apple-darwin10 x86_64-apple-darwin10; do
@@ -158,6 +167,11 @@ libbuild() {
 
 # Function to build Mac OS X Packages
 pkgbuild() {
+	if [ "`uname -r | cut -d . -f 1`" -lt "10" ]; then
+		LIBCACKEYG=libcackeyg.pkg
+	else
+		LIBCACKEYG=libcackey_g.pkg
+	fi
 	rm -f build/cackey_osx_build/cackey.dylib
 	ln macbuild/${OSX}/libcackey.dylib build/cackey_osx_build/cackey.dylib
 	for PMDOC in build/cackey_osx_build/Template_pmbuild/*.in; do
@@ -170,6 +184,8 @@ pkgbuild() {
 		sed "s|@@TARGETOS@@|${PKTARGETOS}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
 		sed "s|@@NEXTOSXVER@@|${NEXTOSXVER}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
 		sed "s|@@CUROSXVER@@|${CUROSXVER}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
+		sed "s|@@LIBCACKEYG@@|${LIBCACKEYG}|g" build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
+		cp build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
 		mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
 	done
 	if [ ${OSX} == "Panther" ]; then
@@ -228,6 +244,8 @@ case "$1" in
 		tiger
 		leopard
 		snowleopard
+		echo ""
+		echo "All builds complete."
 		exit $?
 	;;
 

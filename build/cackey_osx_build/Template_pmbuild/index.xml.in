@@ -17,7 +17,7 @@
 			<pkgref id="mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.cackey.pkg"/>
 		</choice>
 		<choice title="CACKey PKCS#11 Library (Debug)" id="cackeydebug" starts_selected="true" starts_enabled="true" starts_hidden="false">
-			<pkgref id="mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.libcackeyg.pkg"/>
+			<pkgref id="mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.@@LIBCACKEYG@@"/>
 		</choice>
 	</contents>
 	<resources bg-scale="none" bg-align="topleft">

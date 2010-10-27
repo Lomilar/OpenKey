@@ -1,6 +1,6 @@
 <pkgref spec="1.12" uuid="@@UUID@@">
 	<config>
-		<identifier>mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.libcackeyg.pkg</identifier>
+		<identifier>mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.@@LIBCACKEYG@@</identifier>
 		<version>1</version>
 		<description></description>
 		<post-install type="none"/>
