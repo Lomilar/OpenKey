@@ -3173,6 +3173,12 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
+	if (cackey_initialized) {
+		CACKEY_DEBUG_PRINTF("Error.  Already initialized.");
+
+		return(CKR_CRYPTOKI_ALREADY_INITIALIZED);
+	}
+
 	if (pInitArgs != NULL) {
 		args = pInitArgs;
 		memcpy(&cackey_args, args, sizeof(cackey_args));
@@ -3190,12 +3196,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_args.LockMutex = NULL;
 		cackey_args.UnlockMutex = NULL;
 		cackey_args.flags = 0;
-	}
-
-	if (cackey_initialized) {
-		CACKEY_DEBUG_PRINTF("Error.  Already initialized.");
-
-		return(CKR_CRYPTOKI_ALREADY_INITIALIZED);
 	}
 
 	for (idx = 0; idx < (sizeof(cackey_sessions) / sizeof(cackey_sessions[0])); idx++) {
@@ -3702,6 +3702,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_WaitForSlotEvent)(CK_FLAGS flags, CK_SLOT_ID_PTR pSl
 		return(CKR_CRYPTOKI_NOT_INITIALIZED);
 	}
 
+	/* XXX: TODO: Implement this... */
 	CACKEY_DEBUG_PRINTF("Returning CKR_FUNCTION_NOT_SUPPORTED (%i)", CKR_FUNCTION_NOT_SUPPORTED);
 
 	return(CKR_FUNCTION_NOT_SUPPORTED);
@@ -3723,14 +3724,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 	}
 
 	if (pMechanismList == NULL) {
-		*pulCount = 3;
+		*pulCount = 2;
 
 		CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i)", CKR_OK);
 
 		return(CKR_OK);
 	}
 
-	if (*pulCount < 3) {
+	if (*pulCount < 2) {
 		CACKEY_DEBUG_PRINTF("Error.  Buffer too small.");
 
 		return(CKR_BUFFER_TOO_SMALL);
