@@ -4,15 +4,22 @@
 # kenneth.l.vanalstyne@usace.army.mil
 CACKEY_VERSION=`cat configure.ac | grep AC_INIT | cut -d " " -f 2 | sed 's_)__'`
 
+# Check to see if we're building on Mac OS X 10.7 "Lion"
+if [ "`uname -r | cut -d . -f 1`" = "11" ]; then
+	LIONBUILD=1
+fi
+
 # Usage function
 usage() {
 	echo "Usage: build_osx.sh <target>"
 	echo Where target is one of:
-	echo "    panther  - (Builds 10.3 Library for PPCG3)"
-	echo "    tiger  - (Builds Universal 10.4 Library for PPCG3/i386)"
+	echo "    panther  - (Builds 10.3 Library for PPCG3) (LEGACY)"
+	echo "    tiger  - (Builds Universal 10.4 Library for PPCG3/i386) (LEGACY)"
 	echo "    leopard  - (Builds Universal 10.5 Library for PPCG4/i386)"
 	echo "    snowleopard  - (Builds Universal 10.6 Library for i386/x86_64)"
+	echo "    lion  - (Builds Universal 10.7 Library for i386/x86_64)"
 	echo "    all - (Builds for all supported targets)"
+	echo "    legacy - (Builds for all supported targets older than 10.7)"
 	echo "    clean - (Cleans up)"
 	echo "Run from CACKey Build Root."
 	exit $?
@@ -39,6 +46,7 @@ makedir() {
 		mkdir macbuild/Tiger
 		mkdir macbuild/Leopard
 		mkdir macbuild/Snowleopard
+		mkdir macbuild/Lion
 		mkdir macbuild/pkg
 	fi
 	if [ ! -f config.guess ]; then
@@ -131,6 +139,26 @@ snowleopard() {
 	pkgbuild
 }
 
+# Build function for Lion
+lion() {
+	makedir
+	HEADERS=/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks/PCSC.framework/Versions/A/Headers/
+	LIBRARY=/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks/PCSC.framework/PCSC
+	LIB=""
+	ARCHLIST=""
+	DLIB=""
+	DARCHLIST=""
+	OSX=Lion
+	PKTARGETOS=3
+	NEXTOSXVER=10.8
+	CUROSXVER=10.7
+	for HOST in i386-apple-darwin11 x86_64-apple-darwin11; do
+		genbuild
+	done
+	libbuild
+	pkgbuild
+}
+
 # Generic build function
 genbuild() {
 	make distclean
@@ -142,7 +170,15 @@ genbuild() {
 			ARCH="ppc -mcpu=G3"
 		fi
 	fi
-	CFLAGS="-arch ${ARCH}" ./configure --with-pcsc-headers=${HEADERS} --with-pcsc-libs=${LIBRARY} --host=${HOST}
+	if [ "${LIONBUILD}" = 1 ]; then
+		if [ "${ARCH}" == "ppc -mcpu=G4" ]; then
+			CC=powerpc-apple-darwin11-gcc-4.2.1 CPP=powerpc-apple-darwin11-cpp-4.2.1 CFLAGS="-m32 -I/Developer/Platforms/iPhoneOS.platform//Developer/usr/lib/gcc/powerpc-apple-darwin10/4.2.1/include -isysroot /Developer/SDKs/MacOSX10.5.sdk" CPPFLAGS="-D_LIBC_LIMITS_H_" ./configure --with-pcsc-headers=${HEADERS} --with-pcsc-libs=${LIBRARY} --host=${HOST}
+		else
+			CFLAGS="-arch ${ARCH}" ./configure --with-pcsc-headers=${HEADERS} --with-pcsc-libs=${LIBRARY} --host=${HOST}
+		fi
+	else
+		CFLAGS="-arch ${ARCH}" ./configure --with-pcsc-headers=${HEADERS} --with-pcsc-libs=${LIBRARY} --host=${HOST}
+	fi
 	make
 	cp libcackey.dylib macbuild/${OSX}/libcackey.dylib.`echo ${ARCH} | cut -d ' ' -f 1`
 	cp libcackey_g.dylib macbuild/${OSX}/libcackey_g.dylib.`echo ${ARCH} | cut -d ' ' -f 1` 
@@ -211,12 +247,20 @@ case "$1" in
 	;;
 
 	"panther")
+		if [ "${LIONBUILD}" = "1" ]; then
+			echo "Building for platforms older than Mac OS X 10.5 (Leopard) is not supported on Lion..."
+			exit 1
+		fi
 		./autogen.sh
 		panther
 		exit $?
 	;;
 
 	"tiger")
+		if [ "${LIONBUILD}" = "1" ]; then
+			echo "Building for platforms older than Mac OS X 10.5 (Leopard) is not supported on Lion..."
+			exit 1
+		fi
 		./autogen.sh
 		tiger
 		exit $?
@@ -233,15 +277,35 @@ case "$1" in
 		snowleopard
 		exit $?
 	;;
+	
+	"lion")
+		./autogen.sh
+		lion
+		exit $?
+	;;
 
 	"all")
+		./autogen.sh
+		leopard
+		snowleopard
+		lion
+		echo ""
+		echo "All builds complete."
+		exit $?
+	;;
+
+	"legacy")
+		if [ "${LIONBUILD}" = "1" ]; then
+			echo "Building for platforms older than Mac OS X 10.5 (Leopard) is not supported on Lion..."
+			exit 1
+		fi
 		./autogen.sh
 		panther
 		tiger
 		leopard
 		snowleopard
 		echo ""
-		echo "All builds complete."
+		echo "All LEGACY builds complete."
 		exit $?
 	;;
 
