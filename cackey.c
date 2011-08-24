@@ -1737,7 +1737,7 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 
 	vlen = (vlen_buf[1] << 8) | vlen_buf[0];
 
-	CACKEY_DEBUG_PRINTF("Tag Length = %i, Value Length = %i", tlen, vlen);
+	CACKEY_DEBUG_PRINTF("Tag Length = %lu, Value Length = %lu", (unsigned long) tlen, (unsigned long) vlen);
 
 	offset_t += 2;
 	offset_v += 2;
@@ -4630,6 +4630,78 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 	return(CKR_OK);
 }
 
+static int cackey_pkcs11_compare_attributes(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b) {
+	unsigned char *smallbuf, *largebuf;
+	size_t smallbuf_len, largebuf_len;
+
+	CACKEY_DEBUG_PRINTF("Called.");
+
+	if (a->type != b->type) {
+		return(0);
+	}
+
+	CACKEY_DEBUG_PRINTF("    ... found matching type ...");
+
+	CACKEY_DEBUG_PRINTBUF("    ... our value:", a->pValue, a->ulValueLen);
+
+	if (b->pValue == NULL) {
+		CACKEY_DEBUG_PRINTF("       ... found wildcard match");
+
+		return(1);
+	}
+
+	if (a->pValue == NULL) {
+		return(0);
+	}
+
+ 	if (b->ulValueLen == a->ulValueLen && memcmp(a->pValue, b->pValue, b->ulValueLen) == 0) {
+		CACKEY_DEBUG_PRINTF("       ... found exact match");
+
+		return(1);
+	}
+
+	switch (a->type) {
+		case CKA_MODULUS:
+			if (a->ulValueLen == b->ulValueLen) {
+				break;
+			}
+
+			if (a->ulValueLen > b->ulValueLen) {
+				smallbuf = b->pValue;
+				smallbuf_len = b->ulValueLen;
+
+				largebuf = a->pValue;
+				largebuf_len = a->ulValueLen;
+			} else {
+				smallbuf = a->pValue;
+				smallbuf_len = a->ulValueLen;
+
+				largebuf = b->pValue;
+				largebuf_len = b->ulValueLen;
+			}
+
+			for (; largebuf_len != smallbuf_len; largebuf++,largebuf_len--) {
+				if (largebuf[0] != 0) {
+					break;
+				}
+			}
+
+			if (largebuf_len != smallbuf_len) {
+				break;
+			}
+
+			if (memcmp(largebuf, smallbuf, smallbuf_len) == 0) {
+				CACKEY_DEBUG_PRINTF("       ... found approximate match");
+
+				return(1);
+			}
+
+			break;
+	}
+
+	return(0);
+}
+
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE_PTR phObject, CK_ULONG ulMaxObjectCount, CK_ULONG_PTR pulObjectCount) {
 	struct cackey_identity *curr_id;
 	CK_ATTRIBUTE *curr_attr;
@@ -4718,25 +4790,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_H
 			CACKEY_DEBUG_PRINTBUF("    Value looking for:", curr_attr->pValue, curr_attr->ulValueLen);
 
 			for (sess_attr_idx = 0; sess_attr_idx < curr_id->attributes_count; sess_attr_idx++) {
-				if (curr_id->attributes[sess_attr_idx].type == curr_attr->type) {
-					CACKEY_DEBUG_PRINTF("    ... found matching type ...");
-					CACKEY_DEBUG_PRINTBUF("    ... our value:", curr_id->attributes[sess_attr_idx].pValue, curr_id->attributes[sess_attr_idx].ulValueLen);
+				if (cackey_pkcs11_compare_attributes(&curr_id->attributes[sess_attr_idx], curr_attr)) {
+					matched_count++;
 
-					if (curr_attr->pValue == NULL) {
-						CACKEY_DEBUG_PRINTF("       ... found wildcard match");
-
-						matched_count++;
-
-						break;
-					}
-
- 					if (curr_attr->ulValueLen == curr_id->attributes[sess_attr_idx].ulValueLen && memcmp(curr_attr->pValue, curr_id->attributes[sess_attr_idx].pValue, curr_id->attributes[sess_attr_idx].ulValueLen) == 0) {
-						CACKEY_DEBUG_PRINTF("       ... found exact match");
-
-						matched_count++;
-
-						break;
-					}
+					break;
 				}
 			}
 
