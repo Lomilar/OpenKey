@@ -13,13 +13,10 @@ fi
 usage() {
 	echo "Usage: build_osx.sh <target>"
 	echo Where target is one of:
-	echo "    panther  - (Builds 10.3 Library for PPCG3) (LEGACY)"
-	echo "    tiger  - (Builds Universal 10.4 Library for PPCG3/i386) (LEGACY)"
 	echo "    leopard  - (Builds Universal 10.5 Library for PPCG4/i386)"
 	echo "    snowleopard  - (Builds Universal 10.6 Library for i386/x86_64)"
 	echo "    lion  - (Builds Universal 10.7 Library for i386/x86_64)"
 	echo "    all - (Builds for all supported targets)"
-	echo "    legacy - (Builds for all supported targets older than 10.7)"
 	echo "    clean - (Cleans up)"
 	echo "Run from CACKey Build Root."
 	exit $?
@@ -28,6 +25,8 @@ usage() {
 # Clean up function
 clean() {
 	rm -f build/cackey_osx_build/cackey.dylib
+	rm -rf build/cackey_osx_build/PKCS11.tokend
+	rm -rf PKCS11.tokend
 	rm -rf macbuild
 	rm -rf build/cackey_osx_build/*.pmdoc
 	make distclean
@@ -42,8 +41,6 @@ makedir() {
 	fi
 	if [ ! -d macbuild ]; then
 		mkdir macbuild
-		mkdir macbuild/Panther
-		mkdir macbuild/Tiger
 		mkdir macbuild/Leopard
 		mkdir macbuild/Snowleopard
 		mkdir macbuild/Lion
@@ -58,45 +55,6 @@ makedir() {
 	if [ ! -f install-sh ]; then
 		cp ${LIBTOOLDIR}/install-sh .
 	fi
-}
-
-# Build function for Panther
-panther() {
-	makedir
-	HEADERS=/Developer/SDKs/MacOSX10.3.9.sdk/System/Library/Frameworks/PCSC.framework/Versions/A/Headers/
-	LIBRARY=/Developer/SDKs/MacOSX10.3.9.sdk/System/Library/Frameworks/PCSC.framework/PCSC
-	OSX=Panther
-	PKTARGETOS=1
-	NEXTOSXVER=10.4
-	CUROSXVER=10.3
-	HOST=powerpc-apple-darwin7
-	make distclean
-	ARCH="ppc -mcpu=G3"
-	CFLAGS="-arch ${ARCH}" ./configure --with-pcsc-headers=${HEADERS} --with-pcsc-libs=${LIBRARY} --host=${HOST}
-	make
-	cp libcackey.dylib macbuild/${OSX}/libcackey.dylib
-	cp libcackey_g.dylib macbuild/${OSX}/libcackey_g.dylib
-	pkgbuild
-}
-
-# Build function for Tiger
-tiger() {
-	makedir
-	HEADERS=/Developer/SDKs/MacOSX10.4u.sdk/System/Library/Frameworks/PCSC.framework/Versions/A/Headers/
-	LIBRARY=/Developer/SDKs/MacOSX10.4u.sdk/System/Library/Frameworks/PCSC.framework/PCSC
-	LIB=""
-	ARCHLIST=""
-	DLIB=""
-	DARCHLIST=""
-	OSX=Tiger
-	PKTARGETOS=2
-	NEXTOSXVER=10.5
-	CUROSXVER=10.4
-	for HOST in powerpc-apple-darwin8 i386-apple-darwin8; do
-		genbuild
-	done
-	libbuild
-	pkgbuild
 }
 
 # Build function for Leopard
@@ -206,6 +164,19 @@ pkgbuild() {
 	fi
 	rm -f build/cackey_osx_build/cackey.dylib
 	ln macbuild/${OSX}/libcackey.dylib build/cackey_osx_build/cackey.dylib
+	rm -rf build/cackey_osx_build/PKCS11.tokend
+	if [ "${LIONBUILD}" = 1 ]; then
+		TAR=gnutar
+	else
+		TAR=tar
+	fi
+	if [ "${OSX}" = "Leopard" ]; then
+		curl http://devel.kvanals.org/PKCS11_Tokend/PKCS11_tokend-latest.tar.gz | ${TAR} --strip-components 3 --wildcards -x -z -f - "PKCS11_tokend-*/prebuilt/leopard/PKCS11.tokend"
+		mv PKCS11.tokend build/cackey_osx_build/PKCS11.tokend
+	else
+		curl http://devel.kvanals.org/PKCS11_Tokend/PKCS11_tokend-latest.tar.gz | ${TAR} --strip-components 3 --wildcards -x -z -f - "PKCS11_tokend-*/prebuilt/snowleopard/PKCS11.tokend"
+		mv PKCS11.tokend build/cackey_osx_build/PKCS11.tokend
+	fi
 	for PMDOC in build/cackey_osx_build/Template_pmbuild/*.in; do
 		PMDOC="`echo "${PMDOC}" | sed 's|l.in|l|g' | sed 's|build/cackey_osx_build/Template_pmbuild/||g'`"
 		UUID="`python -c 'import uuid; print uuid.uuid1()' | dd conv=ucase 2>/dev/null`"
@@ -220,13 +191,7 @@ pkgbuild() {
 		cp build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC} build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1
 		mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}.1 build/cackey_osx_build/${OSX}_pmbuild.pmdoc/${PMDOC}
 	done
-	if [ ${OSX} == "Panther" ]; then
-		EXT=mpkg
-		cat build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml | grep -v -i require > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new
-		mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml
-	else
-		EXT=pkg
-	fi
+	EXT=pkg
 	if [ ${OSX} == "Snowleopard" ]; then
 		cat build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml | sed 's|for Mac OS X Snowleopard|for Mac OS X SnowLeopard|g' > build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new
 		mv build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml.new build/cackey_osx_build/${OSX}_pmbuild.pmdoc/index.xml
@@ -236,6 +201,7 @@ pkgbuild() {
 	gzip -9 macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}.tar
 	rm -rf macbuild/pkg/CACKey_${CACKEY_VERSION}_${OSX}.${EXT}
 	rm -f build/cackey_osx_build/cackey.dylib
+	rm -rf build/cackey_osx_build/PKCS11.tokend
 	echo "${OSX} build complete"
 }
 
@@ -243,26 +209,6 @@ pkgbuild() {
 case "$1" in
 	"")
 		usage
-		exit $?
-	;;
-
-	"panther")
-		if [ "${LIONBUILD}" = "1" ]; then
-			echo "Building for platforms older than Mac OS X 10.5 (Leopard) is not supported on Lion..."
-			exit 1
-		fi
-		./autogen.sh
-		panther
-		exit $?
-	;;
-
-	"tiger")
-		if [ "${LIONBUILD}" = "1" ]; then
-			echo "Building for platforms older than Mac OS X 10.5 (Leopard) is not supported on Lion..."
-			exit 1
-		fi
-		./autogen.sh
-		tiger
 		exit $?
 	;;
 
@@ -291,21 +237,6 @@ case "$1" in
 		lion
 		echo ""
 		echo "All builds complete."
-		exit $?
-	;;
-
-	"legacy")
-		if [ "${LIONBUILD}" = "1" ]; then
-			echo "Building for platforms older than Mac OS X 10.5 (Leopard) is not supported on Lion..."
-			exit 1
-		fi
-		./autogen.sh
-		panther
-		tiger
-		leopard
-		snowleopard
-		echo ""
-		echo "All LEGACY builds complete."
 		exit $?
 	;;
 

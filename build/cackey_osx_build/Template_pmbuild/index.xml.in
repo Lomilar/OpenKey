@@ -19,6 +19,9 @@
 		<choice title="CACKey PKCS#11 Library (Debug)" id="cackeydebug" starts_selected="true" starts_enabled="true" starts_hidden="false">
 			<pkgref id="mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.@@LIBCACKEYG@@"/>
 		</choice>
+		<choice title="PKCS11 Tokend Connector" id="PKCS11" starts_selected="true" starts_enabled="true" starts_hidden="false">
+			<pkgref id="mil.army.usace.cackeyForMacOsX@@OSXVERSION@@.PKCS11.pkg"/>
+		</choice>
 	</contents>
 	<resources bg-scale="none" bg-align="topleft">
 		<locale lang="en">
@@ -35,6 +38,9 @@ Mac build contact: Kenneth Van Alstyne <kenneth.vanalstyne@hq.dhs.gov>\
                    US Department of Homeland Security\
 contact: Roy Keene <roy.s.keene@usace.army.mil>\
 ------------------------------------------------\
+\
+The PKCS11.tokend connector module included in this package is licensed under\
+the APSL. See: http://devel.kvanals.org/PKCS11_Tokend\
 \
 The following files in the source directory are the intellectual property of the\
 Free Software Foundation and are licensed under the terms of the GNU General\
@@ -65,6 +71,9 @@ following licenses:\
 To use CACKey, install /Library/CACKey/libcackey.dylib or\
 /usr/lib/pkcs11/cackey.dylib as a security module into any application that can use a PKCS#11 provider.\
 \
+A PKCS11 Connector for Tokend (Keychain Access) will be installed in /System/Library/Security/tokend.\
+To use, be sure to import the certificate authorities into Keychain Access.\
+\
 A debug version, /Library/CACKey/libcackey_g.dylib is provided if debug output is necessary.}]]>
 			</resource>
 		</locale>
@@ -81,6 +90,7 @@ A debug version, /Library/CACKey/libcackey_g.dylib is provided if debug output i
 	<item type="file">01libcackey.xml</item>
 	<item type="file">02libcackey.xml</item>
 	<item type="file">03libcackey.xml</item>
+	<item type="file">04pkcs11tokend.xml</item>
 	<mod>properties.customizeOption</mod>
 	<mod>properties.title</mod>
 	<mod>description</mod>
