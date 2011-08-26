@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
 static char *pkcs11_attribute_to_name(CK_ATTRIBUTE_TYPE attrib) {
 	static char retbuf[1024];
 
@@ -77,6 +78,27 @@ static char *pkcs11_attribute_to_name(CK_ATTRIBUTE_TYPE attrib) {
 }
 
 int main_pkcs11(void) {
+	CK_FUNCTION_LIST_PTR pFunctionList;
+	CK_RV (*C_CloseSession)(CK_SESSION_HANDLE hSession) = NULL;
+	CK_RV (*C_Decrypt)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pEncryptedData, CK_ULONG ulEncryptedDataLen, CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen) = NULL;
+	CK_RV (*C_DecryptInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) = NULL;
+	CK_RV (*C_Encrypt)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pEncryptedData, CK_ULONG_PTR pulEncryptedDataLen) = NULL;
+	CK_RV (*C_EncryptInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) = NULL;
+	CK_RV (*C_Finalize)(CK_VOID_PTR pReserved) = NULL;
+	CK_RV (*C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE_PTR phObject, CK_ULONG ulMaxObjectCount, CK_ULONG_PTR pulObjectCount) = NULL;
+	CK_RV (*C_FindObjectsFinal)(CK_SESSION_HANDLE hSession) = NULL;
+	CK_RV (*C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) = NULL;
+	CK_RV (*C_GetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount) = NULL;
+	CK_RV (*C_GetInfo)(CK_INFO_PTR pInfo) = NULL;
+	CK_RV (*C_GetSessionInfo)(CK_SESSION_HANDLE hSession, CK_SESSION_INFO_PTR pInfo) = NULL;
+	CK_RV (*C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo) = NULL;
+	CK_RV (*C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount) = NULL;
+	CK_RV (*C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo) = NULL;
+	CK_RV (*C_Initialize)(CK_VOID_PTR pInitArgs) = NULL;
+	CK_RV (*C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen) = NULL;
+	CK_RV (*C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY notify, CK_SESSION_HANDLE_PTR phSession) = NULL;
+	CK_RV (*C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen) = NULL;
+	CK_RV (*C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey) = NULL;
 	CK_C_INITIALIZE_ARGS initargs;
 	CK_INFO clientinfo;
 	CK_ULONG numSlots, currSlot;
@@ -112,6 +134,35 @@ int main_pkcs11(void) {
 	CK_RV chk_rv;
 	char *fgets_ret;
 	int i;
+
+	chk_rv = C_GetFunctionList(&pFunctionList);
+	if (chk_rv != CKR_OK) {
+		printf("C_GetFunctionList() failed.");
+
+		return(1);
+	}
+
+
+	C_CloseSession = pFunctionList->C_CloseSession;
+	C_Decrypt = pFunctionList->C_Decrypt;
+	C_DecryptInit = pFunctionList->C_DecryptInit;
+	C_Encrypt = pFunctionList->C_Encrypt;
+	C_EncryptInit = pFunctionList->C_EncryptInit;
+	C_Finalize = pFunctionList->C_Finalize;
+	C_FindObjects = pFunctionList->C_FindObjects;
+	C_FindObjectsFinal = pFunctionList->C_FindObjectsFinal;
+	C_FindObjectsInit = pFunctionList->C_FindObjectsInit;
+	C_GetAttributeValue = pFunctionList->C_GetAttributeValue;
+	C_GetInfo = pFunctionList->C_GetInfo;
+	C_GetSessionInfo = pFunctionList->C_GetSessionInfo;
+	C_GetSlotInfo = pFunctionList->C_GetSlotInfo;
+	C_GetSlotList = pFunctionList->C_GetSlotList;
+	C_GetTokenInfo = pFunctionList->C_GetTokenInfo;
+	C_Initialize = pFunctionList->C_Initialize;
+	C_Login = pFunctionList->C_Login;
+	C_OpenSession = pFunctionList->C_OpenSession;
+	C_Sign = pFunctionList->C_Sign;
+	C_SignInit = pFunctionList->C_SignInit;
 
 	privateKeyObjects = malloc(sizeof(*privateKeyObjects) * 1024);
 	privateKeyObjects_root = privateKeyObjects;
