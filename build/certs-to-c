@@ -2,6 +2,12 @@
 
 for file in "$@"; do
 	rm -f tmpfile.x509
+	if ! openssl x509 -in "${file}" -inform pem -noout -checkend 0 >/dev/null 2>/dev/null; then
+		echo "warning: Skipping \"${file}\" as it is invalid or expired." >&2
+
+		continue
+	fi
+
 	openssl x509 -in "${file}" -out tmpfile.x509 -inform pem -outform der
 
 	pubkeylen="$(openssl x509 -in tmpfile.x509 -inform der -text -noout | grep 'RSA Public Key:' | sed 's@^.*(\([0-9][0-9]*\) bit).*$@\1@')"
