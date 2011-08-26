@@ -55,23 +55,13 @@
 #endif
 
 #include "pkcs11.h"
+#include "pkcs11n.h"
 #include "asn1-x509.h"
+#include "sha1.h"
+#include "md5.h"
 
 #ifndef CACKEY_CRYPTOKI_VERSION_CODE
 #  define CACKEY_CRYPTOKI_VERSION_CODE 0x021e00
-#endif
-
-#ifndef CKA_TRUST_SERVER_AUTH
-#  define CKA_TRUST_SERVER_AUTH 0xce536358
-#endif
-#ifndef CKA_TRUST_CLIENT_AUTH
-#  define CKA_TRUST_CLIENT_AUTH 0xce536359
-#endif
-#ifndef CKA_TRUST_CODE_SIGNING
-#  define CKA_TRUST_CODE_SIGNING 0xce53635a
-#endif
-#ifndef CKA_TRUST_EMAIL_PROTECTION
-#  define CKA_TRUST_EMAIL_PROTECTION 0xce53635b
 #endif
 
 /* GSC-IS v2.1 Definitions */
@@ -623,6 +613,11 @@ static struct cackey_slot cackey_slots[128];
 static int cackey_initialized = 0;
 static int cackey_biglock_init = 0;
 CK_C_INITIALIZE_ARGS cackey_args;
+
+/** Extra certificates to include in token **/
+struct cackey_pcsc_identity extra_certs[] = {
+#include "cackey_builtin_certs.h"
+};
 
 /* PCSC Global Handles */
 static LPSCARDCONTEXT cackey_pcsc_handle = NULL;
@@ -1890,6 +1885,10 @@ static struct cackey_tlv_entity *cackey_read_tlv(struct cackey_slot *slot) {
 static void cackey_free_certs(struct cackey_pcsc_identity *start, size_t count, int free_start) {
 	size_t idx;
 
+	if (start == NULL) {
+		return;
+	}
+
 	for (idx = 0; idx < count; idx++) {
 		if (start[idx].certificate) {
 			free(start[idx].certificate);
@@ -2668,6 +2667,7 @@ static int cackey_mutex_unlock(void *mutex) {
 static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struct cackey_pcsc_identity *identity, unsigned long identity_num, CK_ULONG_PTR pulCount) {
 	static CK_BBOOL ck_true = 1;
 	static CK_BBOOL ck_false = 0;
+	static CK_TRUST ck_trusted = CK_TRUSTED_DELEGATOR;
 	CK_ULONG numattrs = 0, retval_count;
 	CK_ATTRIBUTE_TYPE curr_attr_type;
 	CK_ATTRIBUTE curr_attr, *retval;
@@ -2677,13 +2677,19 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 	CK_CERTIFICATE_TYPE ck_certificate_type;
 	CK_KEY_TYPE ck_key_type;
 	CK_UTF8CHAR ucTmpBuf[1024];
+	SHA1Context sha1_ctx;
+	MD5_CTX md5_ctx;
+	uint8_t sha1_hash[SHA1HashSize];
+	uint8_t md5_hash[MD5HashSize];
 	unsigned char *certificate;
 	ssize_t certificate_len = -1, x509_read_ret;
 	int pValue_free;
 
 	CACKEY_DEBUG_PRINTF("Called (objectClass = %lu, identity_num = %lu).", (unsigned long) objectclass, identity_num);
 
-	if (objectclass != CKO_CERTIFICATE && objectclass != CKO_PUBLIC_KEY && objectclass != CKO_PRIVATE_KEY) {
+	*pulCount = 0;
+
+	if (objectclass != CKO_CERTIFICATE && objectclass != CKO_PUBLIC_KEY && objectclass != CKO_PRIVATE_KEY && objectclass != CKO_NETSCAPE_TRUST) {
 		CACKEY_DEBUG_PRINTF("Returning 0 objects (NULL), invalid object class");
 
 		return(NULL);
@@ -2712,10 +2718,10 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 		return(NULL);
 	}
 
-	retval_count = 16;
+	retval_count = 64;
 	retval = malloc(retval_count * sizeof(*retval));
 
-	for (curr_attr_type = 0; curr_attr_type < 0xce53635f; curr_attr_type++) {
+	for (curr_attr_type = 0; curr_attr_type < 0xce5363bf; curr_attr_type++) {
 		if (curr_attr_type == 0x800) {
 			curr_attr_type = 0xce536300;
 		}
@@ -2745,8 +2751,29 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
 
 				break;
+			case CKA_PRIVATE:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_PRIVATE (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass != CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a Netscape trust object");
+
+					break;
+				}
+
+				pValue = &ck_false;
+				ulValueLen = sizeof(ck_false);
+
+				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+
+				break;
 			case CKA_TRUSTED:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUSTED (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
 
 				pValue = &ck_true;
 				ulValueLen = sizeof(ck_true);
@@ -2786,6 +2813,10 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 						CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a private key.");
 
 						break;
+					case CKO_NETSCAPE_TRUST:
+						CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+						break;
 					case CKO_PUBLIC_KEY:
 						/* XXX: TODO */
 
@@ -2803,8 +2834,8 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_ISSUER:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_ISSUER (0x%08lx) ...", (unsigned long) curr_attr_type);
 
-				if (objectclass != CKO_CERTIFICATE) {
-					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a certificate.");
+				if (objectclass != CKO_CERTIFICATE && objectclass != CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a certificate or Netscape trust object");
 
 					break;
 				}
@@ -2824,8 +2855,8 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_SERIAL_NUMBER:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SERIAL_NUMBER (0x%08lx) ...", (unsigned long) curr_attr_type);
 
-				if (objectclass != CKO_CERTIFICATE) {
-					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a certificate.");
+				if (objectclass != CKO_CERTIFICATE && objectclass != CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a certificate or Netscape trust object");
 
 					break;
 				}
@@ -2846,7 +2877,7 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SUBJECT (0x%08lx) ...", (unsigned long) curr_attr_type);
 
 				if (objectclass != CKO_CERTIFICATE) {
-					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a certificate.");
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a certificate");
 
 					break;
 				}
@@ -2865,6 +2896,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				break;
 			case CKA_ID:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_ID (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
 
 				ucTmpBuf[0] = ((identity_num + 1) >> 8) & 0xff;
 				ucTmpBuf[1] =  (identity_num + 1) & 0xff;
@@ -2914,6 +2951,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_SIGN:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SIGN (0x%08lx) ...", (unsigned long) curr_attr_type);
 
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
+
 				if (objectclass == CKO_PRIVATE_KEY) {
 					pValue = &ck_true;
 					ulValueLen = sizeof(ck_true);
@@ -2928,6 +2971,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_SIGN_RECOVER:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SIGN_RECOVER (0x%08lx) ...", (unsigned long) curr_attr_type);
 
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
+
 				/* We currently only support "Sign with Appendix" */
 				pValue = &ck_false;
 				ulValueLen = sizeof(ck_false);
@@ -2937,6 +2986,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				break;
 			case CKA_DECRYPT:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_DECRYPT (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
 
 				if (objectclass == CKO_PRIVATE_KEY || objectclass == CKO_PUBLIC_KEY) {
 					pValue = &ck_true;
@@ -2952,6 +3007,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_SENSITIVE:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_SENSITIVE (0x%08lx) ...", (unsigned long) curr_attr_type);
 
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
+
 				if (objectclass == CKO_PRIVATE_KEY) {
 					pValue = &ck_true;
 					ulValueLen = sizeof(ck_true);
@@ -2966,6 +3027,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_EXTRACTABLE:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_EXTRACTABLE (0x%08lx) ...", (unsigned long) curr_attr_type);
 
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
+
 				if (objectclass == CKO_PRIVATE_KEY) {
 					pValue = &ck_false;
 					ulValueLen = sizeof(ck_true);
@@ -2979,6 +3046,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				break;
 			case CKA_MODULUS:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_MODULUS (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
 
 				if (certificate_len >= 0) {
 					x509_read_ret = x509_to_modulus(certificate, certificate_len, &pValue);
@@ -2995,6 +3068,12 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			case CKA_PUBLIC_EXPONENT:
 				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_PUBLIC_EXPONENT (0x%08lx) ...", (unsigned long) curr_attr_type);
 
+				if (objectclass == CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are a Netscape trust object");
+
+					break;
+				}
+
 				if (certificate_len >= 0) {
 					x509_read_ret = x509_to_exponent(certificate, certificate_len, &pValue);
 					if (x509_read_ret < 0) {
@@ -3007,40 +3086,61 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 				CACKEY_DEBUG_PRINTF(" ... returning (%p/%lu)", pValue, (unsigned long) ulValueLen);
 
 				break;
+			case CKA_TRUST_DIGITAL_SIGNATURE:
+			case CKA_TRUST_NON_REPUDIATION:
+			case CKA_TRUST_KEY_ENCIPHERMENT:
+			case CKA_TRUST_DATA_ENCIPHERMENT:
+			case CKA_TRUST_KEY_AGREEMENT:
+			case CKA_TRUST_KEY_CERT_SIGN:
+			case CKA_TRUST_CRL_SIGN:
 			case CKA_TRUST_SERVER_AUTH:
-				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUST_SERVER_AUTH (0x%08lx) ...", (unsigned long) curr_attr_type);
-
-				pValue = &ck_true;
-				ulValueLen = sizeof(ck_true);
-
-				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
-
-				break;
 			case CKA_TRUST_CLIENT_AUTH:
-				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUST_CLIENT_AUTH (0x%08lx) ...", (unsigned long) curr_attr_type);
-
-				pValue = &ck_true;
-				ulValueLen = sizeof(ck_true);
-
-				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
-
-				break;
 			case CKA_TRUST_CODE_SIGNING:
-				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUST_CODE_SIGNING (0x%08lx) ...", (unsigned long) curr_attr_type);
+			case CKA_TRUST_EMAIL_PROTECTION:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUST_... (0x%08lx) ...", (unsigned long) curr_attr_type);
 
-				pValue = &ck_true;
-				ulValueLen = sizeof(ck_true);
+				pValue = &ck_trusted;
+				ulValueLen = sizeof(ck_trusted);
 
-				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_TRUST *) pValue), pValue, (unsigned long) ulValueLen);
 
 				break;
-			case CKA_TRUST_EMAIL_PROTECTION:
-				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_TRUST_EMAIL_PROTECTION (0x%08lx) ...", (unsigned long) curr_attr_type);
+			case CKA_CERT_SHA1_HASH:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_CERT_SHA1_HASH (0x%08lx) ...", (unsigned long) curr_attr_type);
 
-				pValue = &ck_true;
-				ulValueLen = sizeof(ck_true);
+				if (objectclass != CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a Netscape trust object");
 
-				CACKEY_DEBUG_PRINTF(" ... returning %lu (%p/%lu)", (unsigned long) *((CK_BBOOL *) pValue), pValue, (unsigned long) ulValueLen);
+					break;
+				}
+
+				SHA1Reset(&sha1_ctx);
+				SHA1Input(&sha1_ctx, certificate, certificate_len);
+				SHA1Result(&sha1_ctx, sha1_hash);
+
+				pValue = sha1_hash;
+				ulValueLen = sizeof(sha1_hash);
+
+				CACKEY_DEBUG_PRINTF(" ... returning %p/%lu", pValue, (unsigned long) ulValueLen);
+
+				break;
+			case CKA_CERT_MD5_HASH:
+				CACKEY_DEBUG_PRINTF("Requesting attribute CKA_CERT_MD5_HASH (0x%08lx) ...", (unsigned long) curr_attr_type);
+
+				if (objectclass != CKO_NETSCAPE_TRUST) {
+					CACKEY_DEBUG_PRINTF(" ... but not getting it because we are not a Netscape trust object");
+
+					break;
+				}
+
+				MD5Init(&md5_ctx);
+				MD5Update(&md5_ctx, certificate, certificate_len);
+				MD5Final(md5_hash, &md5_ctx);
+
+				pValue = md5_hash;
+				ulValueLen = sizeof(md5_hash);
+
+				CACKEY_DEBUG_PRINTF(" ... returning %p/%lu", pValue, (unsigned long) ulValueLen);
 
 				break;
 			default:
@@ -3062,7 +3162,6 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 			}
 
 			if (numattrs >= retval_count) {
-				retval_count *= 2;
 				retval = realloc(retval, retval_count * sizeof(*retval));
 			}
 
@@ -3120,9 +3219,11 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 	struct cackey_pcsc_identity *pcsc_identities;
 	struct cackey_identity *identities;
 	unsigned long num_ids, id_idx, curr_id_type;
-	unsigned long num_certs, cert_idx;
+	unsigned long num_certs, num_extra_certs, cert_idx;
 
 	CACKEY_DEBUG_PRINTF("Called.");
+
+	num_extra_certs = sizeof(extra_certs) / sizeof(extra_certs[0]);
 
 	if (ids_found == NULL) {
 		CACKEY_DEBUG_PRINTF("Error.  ids_found is NULL");
@@ -3134,17 +3235,15 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 	if (pcsc_identities != NULL) {
 		/* Convert number of Certs to number of objects */
 		num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
+		num_ids += num_extra_certs * 2;
 
 		identities = malloc(num_ids * sizeof(*identities));
 
+		/* Add certificates, public keys, and private keys from the smartcard */
 		id_idx = 0;
 		for (cert_idx = 0; cert_idx < num_certs; cert_idx++) {
 			for (curr_id_type = CKO_CERTIFICATE; curr_id_type <= CKO_PRIVATE_KEY; curr_id_type++) {
 				identities[id_idx].attributes = cackey_get_attributes(curr_id_type, &pcsc_identities[cert_idx], cert_idx, &identities[id_idx].attributes_count);
-
-				if (identities[id_idx].attributes == NULL) {
-					identities[id_idx].attributes_count = 0;
-				}
 
 				identities[id_idx].pcsc_identity = malloc(sizeof(*identities[id_idx].pcsc_identity));
 				memcpy(identities[id_idx].pcsc_identity, &pcsc_identities[cert_idx], sizeof(*identities[id_idx].pcsc_identity));
@@ -3157,6 +3256,21 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 		}
 
 		cackey_free_certs(pcsc_identities, num_certs, 1);
+
+		/* Add DoD Certificates and Netscape Trust Objects */
+		for (cert_idx = 0; cert_idx < num_extra_certs; cert_idx++) {
+			identities[id_idx].pcsc_identity = NULL;
+			identities[id_idx].attributes = cackey_get_attributes(CKO_CERTIFICATE, &extra_certs[cert_idx], 0xf000 | cert_idx, &identities[id_idx].attributes_count);
+
+			id_idx++;
+		}
+
+		for (cert_idx = 0; cert_idx < num_extra_certs; cert_idx++) {
+			identities[id_idx].pcsc_identity = NULL;
+			identities[id_idx].attributes = cackey_get_attributes(CKO_NETSCAPE_TRUST, &extra_certs[cert_idx], 0xf000 | cert_idx, &identities[id_idx].attributes_count);
+
+			id_idx++;
+		}
 
 		*ids_found = num_ids;
 		return(identities);
@@ -4633,8 +4747,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTR
 static int cackey_pkcs11_compare_attributes(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b) {
 	unsigned char *smallbuf, *largebuf;
 	size_t smallbuf_len, largebuf_len;
-
-	CACKEY_DEBUG_PRINTF("Called.");
 
 	if (a->type != b->type) {
 		return(0);

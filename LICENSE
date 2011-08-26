@@ -3,10 +3,22 @@ Free Software Foundation and are licensed under the terms of the GNU General
 Public License (GPL):
 	config.guess, config.sub, install-sh
 
-The files in this directory and the "leakcheck" directory are the intellectual
-property of the United States Government.  It is not clear which, if any,
-license is made on them.  In addition, as of 07-JUN-2010 they have not be
-cleared for public release.
+The following files in this directory are the intellectual property of RSA
+Data Security, Inc.:
+	md5.h
+	md5.c
+
+And are "derived from the RSA Data Security, Inc. MD5 Message-Digest
+Algorithm".
+
+The following files in this directory are from RFC 3174:
+	sha1.c
+	sha1.h
+
+The remaining files in this directory and the "leakcheck" directory are the
+intellectual property of the United States Government.  It is not clear which,
+if any, license is made on them.  In addition, as of 07-JUN-2010 they have not
+been cleared for public release.
 
 The files in the "pkcs11/" directory are licensed under the terms of the
 following licenses:

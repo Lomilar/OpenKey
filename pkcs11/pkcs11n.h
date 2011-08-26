@@ -62,6 +62,7 @@ static const char CKT_CVS_ID[] = "@(#) $RCSfile: pkcs11n.h,v $ $Revision: 1.1 $ 
  * 
  */
 #define CKO_NETSCAPE (CKO_VENDOR_DEFINED|NSSCK_VENDOR_NETSCAPE)
+#define CKO_NETSCAPE_TRUST              (CKO_NETSCAPE + 3)
 #define CKO_MOZ_READER			(CKO_NETSCAPE + 5)
 
 /*
@@ -72,5 +73,51 @@ static const char CKT_CVS_ID[] = "@(#) $RCSfile: pkcs11n.h,v $ $Revision: 1.1 $ 
 #define CKA_MOZ_IS_COOL_KEY          (CKA_NETSCAPE +  24)
 #define CKA_MOZ_ATR                     (CKA_NETSCAPE +  25)
 #define CKA_MOZ_TPS_URL                 (CKA_NETSCAPE +  26)
+
+/*
+ * Trust info
+ *
+ * This isn't part of the Cryptoki standard (yet), so I'm putting
+ * all the definitions here.  Some of this would move to nssckt.h
+ * if trust info were made part of the standard.  In view of this
+ * possibility, I'm putting my (NSS) values in the NSS
+ * vendor space, like everything else.
+ */
+
+typedef CK_ULONG          CK_TRUST;
+
+/* If trust goes standard, these'll probably drop out of vendor space. */
+#define CKT_VENDOR_DEFINED     0x80000000
+#define CKT_NETSCAPE (CKT_VENDOR_DEFINED|NSSCK_VENDOR_NETSCAPE)
+
+#define CK_TRUSTED            (CKT_NETSCAPE + 1)
+#define CK_TRUSTED_DELEGATOR  (CKT_NETSCAPE + 2)
+#define CK_MUST_VERIFY_TRUST  (CKT_NETSCAPE + 3)
+#define CK_NOT_TRUSTED        (CKT_NETSCAPE + 10)
+#define CK_TRUST_UNKNOWN      (CKT_NETSCAPE + 5) /* default */
+
+#define CKA_TRUST (CKA_NETSCAPE + 0x2000)
+#define CKA_TRUST_DIGITAL_SIGNATURE     (CKA_TRUST + 1)
+#define CKA_TRUST_NON_REPUDIATION       (CKA_TRUST + 2)
+#define CKA_TRUST_KEY_ENCIPHERMENT      (CKA_TRUST + 3)
+#define CKA_TRUST_DATA_ENCIPHERMENT     (CKA_TRUST + 4)
+#define CKA_TRUST_KEY_AGREEMENT         (CKA_TRUST + 5)
+#define CKA_TRUST_KEY_CERT_SIGN         (CKA_TRUST + 6)
+#define CKA_TRUST_CRL_SIGN              (CKA_TRUST + 7)
+#define CKA_CERT_SHA1_HASH	        (CKA_TRUST + 0x64)
+#define CKA_CERT_MD5_HASH		(CKA_TRUST + 0x65)
+
+#ifndef CKA_TRUST_SERVER_AUTH
+#  define CKA_TRUST_SERVER_AUTH 0xce536358
+#endif
+#ifndef CKA_TRUST_CLIENT_AUTH
+#  define CKA_TRUST_CLIENT_AUTH 0xce536359
+#endif
+#ifndef CKA_TRUST_CODE_SIGNING
+#  define CKA_TRUST_CODE_SIGNING 0xce53635a
+#endif
+#ifndef CKA_TRUST_EMAIL_PROTECTION
+#  define CKA_TRUST_EMAIL_PROTECTION 0xce53635b
+#endif
 
 #endif /* _PKCS11N_H_ */

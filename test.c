@@ -69,6 +69,8 @@ static char *pkcs11_attribute_to_name(CK_ATTRIBUTE_TYPE attrib) {
 		case 0x00000300: return "CKA_HW_FEATURE_TYPE";
 		case 0x00000301: return "CKA_RESET_ON_INIT";
 		case 0x00000302: return "CKA_HAS_RESET";
+		case 0xce5363b4: return "CKA_CERT_SHA1_HASH";
+		case 0xce5363b5: return "CKA_CERT_MD5_HASH";
 	}
 
 	snprintf(retbuf, sizeof(retbuf), "0x%08lx", (unsigned long) attrib);
@@ -118,11 +120,24 @@ int main_pkcs11(void) {
 	                           {CKA_SERIAL_NUMBER, NULL, 0},
 	                           {CKA_SUBJECT, NULL, 0},
 	                           {CKA_ISSUER, NULL, 0},
-	                           {CKA_PRIVATE, NULL, 0},
 	                           {CKA_CERTIFICATE_TYPE, NULL, 0},
 	                           {CKA_KEY_TYPE, NULL, 0},
 	                           {CKA_SIGN, NULL, 0},
-	                           {CKA_VALUE, NULL, 0}
+	                           {CKA_VALUE, NULL, 0},
+				   {CKA_CERT_MD5_HASH, NULL, 0},
+				   {CKA_CERT_SHA1_HASH, NULL, 0},
+				   {CKA_TRUSTED, NULL, 0},
+				   {CKA_TRUST_CLIENT_AUTH, NULL, 0},
+				   {CKA_TRUST_CODE_SIGNING, NULL, 0},
+				   {CKA_TRUST_CRL_SIGN, NULL, 0},
+				   {CKA_TRUST_DATA_ENCIPHERMENT, NULL, 0},
+				   {CKA_TRUST_DIGITAL_SIGNATURE, NULL, 0},
+				   {CKA_TRUST_EMAIL_PROTECTION, NULL, 0},
+				   {CKA_TRUST_KEY_AGREEMENT, NULL, 0},
+				   {CKA_TRUST_KEY_CERT_SIGN, NULL, 0},
+				   {CKA_TRUST_KEY_ENCIPHERMENT, NULL, 0},
+				   {CKA_TRUST_NON_REPUDIATION, NULL, 0},
+				   {CKA_TRUST_SERVER_AUTH, NULL, 0}
 	                          }, *curr_attr;
 	CK_ULONG curr_attr_idx;
 	CK_ULONG byte_idx;
@@ -141,7 +156,6 @@ int main_pkcs11(void) {
 
 		return(1);
 	}
-
 
 	C_CloseSession = pFunctionList->C_CloseSession;
 	C_Decrypt = pFunctionList->C_Decrypt;
@@ -442,6 +456,10 @@ int main_pkcs11(void) {
 									case CKA_KEY_TYPE:
 									case CKA_SIGN:
 									case CKA_DECRYPT:
+									case CKA_TRUSTED:
+									case CKA_CERT_MD5_HASH:
+									case CKA_CERT_SHA1_HASH:
+
 										pucValue = curr_attr->pValue;
 
 										printf("    [%lu] %20s: ", hObject, pkcs11_attribute_to_name(curr_attr->type));
@@ -465,6 +483,18 @@ int main_pkcs11(void) {
 
 										printf(" ;; %p/%lu\n", curr_attr->pValue, curr_attr->ulValueLen);
 
+										break;
+									case CKA_TRUST_CLIENT_AUTH:
+									case CKA_TRUST_CODE_SIGNING:
+									case CKA_TRUST_CRL_SIGN:
+									case CKA_TRUST_DATA_ENCIPHERMENT:
+									case CKA_TRUST_DIGITAL_SIGNATURE:
+									case CKA_TRUST_EMAIL_PROTECTION:
+									case CKA_TRUST_KEY_AGREEMENT:
+									case CKA_TRUST_KEY_CERT_SIGN:
+									case CKA_TRUST_KEY_ENCIPHERMENT:
+									case CKA_TRUST_NON_REPUDIATION:
+									case CKA_TRUST_SERVER_AUTH:
 										break;
 									default:
 										printf("    [%lu] %20s: %p/%lu\n", hObject, pkcs11_attribute_to_name(curr_attr->type), curr_attr->pValue, curr_attr->ulValueLen);
