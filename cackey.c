@@ -60,6 +60,14 @@
 #include "sha1.h"
 #include "md5.h"
 
+/*
+ * Include these source files in this translation unit so that we can bind to
+ * functions and not include any symbols in the output shared object.
+ */
+#include "asn1-x509.c"
+#include "sha1.c"
+#include "md5.c"
+
 #ifndef CACKEY_CRYPTOKI_VERSION_CODE
 #  define CACKEY_CRYPTOKI_VERSION_CODE 0x021e00
 #endif

@@ -188,7 +188,7 @@ ssize_t x509_to_subject(void *x509_der_buf, size_t x509_der_buf_len, void **outb
 	return(x509.subject.asn1rep_len);
 }
 
-ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
+static ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
 	struct x509_object x509;
 	int read_ret;
 
@@ -204,7 +204,7 @@ ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void **outbu
 	return(x509.serial_number.asn1rep_len);
 }
 
-ssize_t x509_to_modulus(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
+static ssize_t x509_to_modulus(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
 	struct asn1_object null, pubkey, modulus, exponent;
 	struct x509_object x509;
 	int read_ret;
@@ -232,7 +232,7 @@ ssize_t x509_to_modulus(void *x509_der_buf, size_t x509_der_buf_len, void **outb
 	return(modulus.size);
 }
 
-ssize_t x509_to_exponent(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
+static ssize_t x509_to_exponent(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
 	struct asn1_object null, pubkey, modulus, exponent;
 	struct x509_object x509;
 	int read_ret;
@@ -260,7 +260,7 @@ ssize_t x509_to_exponent(void *x509_der_buf, size_t x509_der_buf_len, void **out
 	return(exponent.size);
 }
 
-ssize_t x509_to_keysize(void *x509_der_buf, size_t x509_der_buf_len) {
+static ssize_t x509_to_keysize(void *x509_der_buf, size_t x509_der_buf_len) {
 	struct asn1_object null, pubkey, modulus, exponent;
 	struct x509_object x509;
 	int read_ret;
@@ -325,7 +325,7 @@ static const char *_x509_objectid_to_label_string(void *buf, size_t buflen) {
 	return("???");
 }
 
-ssize_t x509_dn_to_string(void *asn1_der_buf, size_t asn1_der_buf_len, char *outbuf, size_t outbuf_len, char *matchlabel) {
+static ssize_t x509_dn_to_string(void *asn1_der_buf, size_t asn1_der_buf_len, char *outbuf, size_t outbuf_len, char *matchlabel) {
 	struct asn1_object whole_thing, current_set, current_seq;
 	struct asn1_object label, value;
 	const char *label_str;

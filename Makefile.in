@@ -10,6 +10,7 @@ SHOBJLDFLAGS = @SHOBJLDFLAGS@
 AR = @AR@
 RANLIB = @RANLIB@
 STRIP = @STRIP@
+OBJCOPY = @OBJCOPY@
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 libdir = @libdir@
@@ -19,36 +20,20 @@ all:
 	$(MAKE) libcackey.@SHOBJEXT@
 	-$(MAKE) libcackey_g.@SHOBJEXT@
 
-cackey.o: cackey.c cackey_builtin_certs.h sha1.h md5.h asn1-x509.h config.h
+cackey.o: cackey.c cackey_builtin_certs.h sha1.c sha1.h md5.c md5.h asn1-x509.c asn1-x509.h config.h
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o cackey.o -c cackey.c
 
-cackey_g.o: cackey.c cackey_builtin_certs.h sha1.h md5.h asn1-x509.h config.h
+cackey_g.o: cackey.c cackey_builtin_certs.h sha1.c sha1.h md5.c md5.h asn1-x509.c asn1-x509.h config.h
 	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) -o cackey_g.o -c cackey.c
 
-asn1-x509.o: asn1-x509.c asn1-x509.h config.h
-	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o asn1-x509.o -c asn1-x509.c
-
-asn1-x509_g.o: asn1-x509.c asn1-x509.h config.h
-	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) -o asn1-x509_g.o -c asn1-x509.c
-
-sha1.o: sha1.c sha1.h config.h
-	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o sha1.o -c sha1.c
-
-sha1_g.o: sha1.c sha1.h config.h
-	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) -o sha1_g.o -c sha1.c
-
-md5.o: md5.c md5.h config.h
-	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o md5.o -c md5.c
-
-md5_g.o: md5.c md5.h config.h
-	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) -o md5_g.o -c md5.c
-
-libcackey.@SHOBJEXT@: cackey.o asn1-x509.o sha1.o md5.o
-	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey.@SHOBJEXT@ cackey.o asn1-x509.o sha1.o md5.o $(LIBS)
+libcackey.@SHOBJEXT@: cackey.o
+	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey.@SHOBJEXT@ cackey.o $(LIBS)
+	-$(OBJCOPY) --wildcard --keep-global-symbol 'C_*' libcackey.@SHOBJEXT@
 	-$(STRIP) -x "libcackey.@SHOBJEXT@"
 
-libcackey_g.@SHOBJEXT@: cackey_g.o asn1-x509_g.o sha1_g.o md5_g.o
-	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey_g.@SHOBJEXT@ cackey_g.o asn1-x509_g.o sha1.o md5_g.o $(LIBS)
+libcackey_g.@SHOBJEXT@: cackey_g.o
+	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey_g.@SHOBJEXT@ cackey_g.o $(LIBS)
+	-$(OBJCOPY) --wildcard --keep-global-symbol 'C_*' libcackey.@SHOBJEXT@
 
 test: test.c libcackey_g.@SHOBJEXT@
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey_g.@SHOBJEXT@
@@ -67,7 +52,7 @@ clean:
 	rm -f libcackey.@SHOBJEXT@ libcackey_g.@SHOBJEXT@
 	rm -f libcackey.@SHOBJEXT@.def libcackey_g.@SHOBJEXT@.def
 	rm -f libcackey.@SHOBJEXT@.a libcackey_g.@SHOBJEXT@.a
-	rm -f cackey.o asn1-x509.o cackey_g.o asn1-x509_g.o sha1.o sha1_g.o md5.o md5_g.o
+	rm -f cackey.o cackey_g.o
 	rm -f test
 	rm -f splint-cackey.txt
 

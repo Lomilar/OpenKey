@@ -38,8 +38,8 @@
                 (((word) << (bits)) | ((word) >> (32-(bits))))
 
 /* Local Function Prototyptes */
-void SHA1PadMessage(SHA1Context *);
-void SHA1ProcessMessageBlock(SHA1Context *);
+static void SHA1PadMessage(SHA1Context *);
+static void SHA1ProcessMessageBlock(SHA1Context *);
 
 /*
  *  SHA1Reset
@@ -56,7 +56,7 @@ void SHA1ProcessMessageBlock(SHA1Context *);
  *      sha Error Code.
  *
  */
-int SHA1Reset(SHA1Context *context)
+static int SHA1Reset(SHA1Context *context)
 {
     if (!context)
     {
@@ -98,7 +98,7 @@ int SHA1Reset(SHA1Context *context)
  *      sha Error Code.
  *
  */
-int SHA1Result( SHA1Context *context,
+static int SHA1Result( SHA1Context *context,
                 uint8_t Message_Digest[SHA1HashSize])
 {
     int i;
@@ -155,7 +155,7 @@ int SHA1Result( SHA1Context *context,
  *      sha Error Code.
  *
  */
-int SHA1Input(    SHA1Context    *context,
+static int SHA1Input(    SHA1Context    *context,
                   const uint8_t  *message_array,
                   unsigned       length)
 {
@@ -227,7 +227,7 @@ int SHA1Input(    SHA1Context    *context,
  *
  *
  */
-void SHA1ProcessMessageBlock(SHA1Context *context)
+static void SHA1ProcessMessageBlock(SHA1Context *context)
 {
     const uint32_t K[] =    {       /* Constants defined in SHA-1   */
                             0x5A827999,
@@ -337,7 +337,7 @@ void SHA1ProcessMessageBlock(SHA1Context *context)
  *
  */
 
-void SHA1PadMessage(SHA1Context *context)
+static void SHA1PadMessage(SHA1Context *context)
 {
     /*
      *  Check to see if the current message block is too small to hold
