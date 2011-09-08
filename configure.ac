@@ -1,4 +1,4 @@
-AC_INIT(cackey, 0.6.2) 
+AC_INIT(cackey, 0.6.3) 
 AC_CONFIG_HEADERS(config.h)
 
 dnl Locate standard tools
@@ -24,7 +24,7 @@ AC_CHECK_TOOL(RANLIB, ranlib)
 
 dnl Determine how to strip executables
 AC_CHECK_TOOL(OBJCOPY, objcopy)
-AC_CHECK_TOOL(STRIP, stripf, [$OBJCOPY])
+AC_CHECK_TOOL(STRIP, strip, [$OBJCOPY])
 
 dnl Check for all required headers
 AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h string.h sys/socket.h sys/types.h sys/un.h time.h unistd.h pthread.h zlib.h limits.h,,[
