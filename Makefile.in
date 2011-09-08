@@ -55,7 +55,7 @@ clean:
 	rm -f splint-cackey.txt
 
 distclean: clean
-	rm -f config.log config.status config.h Makefile
+	rm -f config.log config.status config.h Makefile libcackey.syms
 
 mrproper: distclean
 	rm -f configure config.h.in aclocal.m4 *~

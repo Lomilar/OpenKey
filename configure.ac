@@ -143,7 +143,7 @@ AC_LINK_IFELSE(
 )
 
 dnl Set version script, to limit the scope of symbols
-DC_SETVERSIONSCRIPT(libcackey.vers)
+DC_SETVERSIONSCRIPT(libcackey.vers, libcackey.syms)
 
 dnl Upate LDFLAGS to include setting the run-time linker path to the same as our compile-time linker
 DC_SYNC_RPATH
@@ -152,4 +152,4 @@ dnl If we updated LIBOBJS, update SHLIBOBJS -- must be last.
 DC_SYNC_SHLIBOBJS
 
 dnl Produce Makefile
-AC_OUTPUT(Makefile)
+AC_OUTPUT(Makefile libcackey.syms)
