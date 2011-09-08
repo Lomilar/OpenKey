@@ -9,8 +9,6 @@ SHOBJFLAGS = @SHOBJFLAGS@
 SHOBJLDFLAGS = @SHOBJLDFLAGS@
 AR = @AR@
 RANLIB = @RANLIB@
-STRIP = @STRIP@
-OBJCOPY = @OBJCOPY@
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 libdir = @libdir@
@@ -28,12 +26,12 @@ cackey_g.o: cackey.c cackey_builtin_certs.h sha1.c sha1.h md5.c md5.h asn1-x509.
 
 libcackey.@SHOBJEXT@: cackey.o
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey.@SHOBJEXT@ cackey.o $(LIBS)
-	-$(OBJCOPY) --wildcard --keep-global-symbol 'C_*' libcackey.@SHOBJEXT@
-	-$(STRIP) -x "libcackey.@SHOBJEXT@"
+	-@WEAKENSYMS@ "libcackey.@SHOBJEXT@"
+	-@REMOVESYMS@ "libcackey.@SHOBJEXT@"
 
 libcackey_g.@SHOBJEXT@: cackey_g.o
 	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey_g.@SHOBJEXT@ cackey_g.o $(LIBS)
-	-$(OBJCOPY) --wildcard --keep-global-symbol 'C_*' libcackey.@SHOBJEXT@
+	-@WEAKENSYMS@ "libcackey_g.@SHOBJEXT@"
 
 test: test.c libcackey_g.@SHOBJEXT@
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey_g.@SHOBJEXT@

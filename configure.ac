@@ -1,4 +1,4 @@
-AC_INIT(cackey, 0.6.3) 
+AC_INIT(cackey, 0.6.4) 
 AC_CONFIG_HEADERS(config.h)
 
 dnl Locate standard tools
@@ -22,9 +22,8 @@ dnl Determine how to create static archives on this platform
 AC_CHECK_TOOL(AR, ar)
 AC_CHECK_TOOL(RANLIB, ranlib)
 
-dnl Determine how to strip executables
-AC_CHECK_TOOL(OBJCOPY, objcopy)
-AC_CHECK_TOOL(STRIP, strip, [$OBJCOPY])
+dnl Determine how to strip executables and remove symbols
+DC_FIND_STRIP_AND_REMOVESYMS(libcackey.syms)
 
 dnl Check for all required headers
 AC_CHECK_HEADERS(arpa/inet.h inttypes.h stdarg.h stdint.h stdio.h stdlib.h string.h sys/socket.h sys/types.h sys/un.h time.h unistd.h pthread.h zlib.h limits.h,,[
