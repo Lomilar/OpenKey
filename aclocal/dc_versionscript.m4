@@ -39,8 +39,8 @@ AC_DEFUN(DC_FIND_STRIP_AND_REMOVESYMS, [
 	SYMFILE="$1"
 
 	dnl Determine how to strip executables
-	AC_CHECK_TOOL(OBJCOPY, objcopy, [false])
-	AC_CHECK_TOOL(STRIP, strip, [false])
+	AC_CHECK_TOOLS(OBJCOPY, objcopy gobjcopy, [false])
+	AC_CHECK_TOOLS(STRIP, strip gstrip, [false])
 
 	if test "x${STRIP}" = "xfalse"; then
 		STRIP="${OBJCOPY}"
