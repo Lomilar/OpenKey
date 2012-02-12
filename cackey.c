@@ -3860,8 +3860,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 	}
 
 	pMechanismList[0] = CKM_RSA_PKCS;
-	pMechanismList[1] = CKM_SHA1_RSA_PKCS;
-	*pulCount = 2;
+	*pulCount = 1;
 
 	CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i)", CKR_OK);
 
@@ -3913,22 +3912,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismInfo)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 		return(CKR_GENERAL_ERROR);
 	}
 
-	/* XXX: This is untested, and further I'm not really sure if this is correct. */
 	switch (type) {
 		case CKM_RSA_PKCS:
 			pInfo->ulMinKeySize = 512;
 			pInfo->ulMaxKeySize = 8192;
 			pInfo->flags = CKF_HW | CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY;
-			break;
-		case CKM_RSA_X_509:
-			pInfo->ulMinKeySize = 512;
-			pInfo->ulMaxKeySize = 8192;
-			pInfo->flags = CKF_HW | CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY;
-			break;
-		case CKM_SHA1_RSA_PKCS:
-			pInfo->ulMinKeySize = 512;
-			pInfo->ulMaxKeySize = 8192;
-			pInfo->flags = CKF_HW | CKF_SIGN | CKF_VERIFY;
 			break;
 	}
 
@@ -5520,8 +5508,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 		return(CKR_ARGUMENTS_BAD);
 	}
 
-	if (pMechanism->mechanism != CKM_RSA_PKCS && pMechanism->mechanism != CKM_SHA1_RSA_PKCS) {
-		CACKEY_DEBUG_PRINTF("Error. pMechanism->mechanism not specified as CKM_RSA_PKCS or CKM_SHA1_RSA_PKCS");
+	if (pMechanism->mechanism != CKM_RSA_PKCS) {
+		CACKEY_DEBUG_PRINTF("Error. pMechanism->mechanism not specified as CKM_RSA_PKCS");
 
 		return(CKR_MECHANISM_PARAM_INVALID);
 	}
@@ -5749,14 +5737,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR 
 			cackey_sessions[hSession].sign_bufused += ulPartLen;
 
 			break;
-		case CKM_SHA1_RSA_PKCS:
-			/* XXX: Accumulate into a SHA1 hash */
-			cackey_mutex_unlock(cackey_biglock);
-
-			CACKEY_DEBUG_PRINTF("Returning CKR_FUNCTION_NOT_SUPPORTED (%i)", CKR_FUNCTION_NOT_SUPPORTED);
-
-			return(CKR_FUNCTION_NOT_SUPPORTED);
-			break;
 	}
 
 	mutex_retval = cackey_mutex_unlock(cackey_biglock);
@@ -5874,14 +5854,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 				retval = CKR_OK;
 			}
 
-			break;
-		case CKM_SHA1_RSA_PKCS:
-			/* XXX: Accumulate into a SHA1 hash */
-			cackey_mutex_unlock(cackey_biglock);
-
-			CACKEY_DEBUG_PRINTF("Returning CKR_FUNCTION_NOT_SUPPORTED (%i)", CKR_FUNCTION_NOT_SUPPORTED);
-
-			return(CKR_FUNCTION_NOT_SUPPORTED);
 			break;
 	}
 
