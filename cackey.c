@@ -3846,7 +3846,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 	}
 
 	if (pMechanismList == NULL) {
-		*pulCount = 2;
+		*pulCount = 1;
 
 		CACKEY_DEBUG_PRINTF("Returning CKR_OK (%i)", CKR_OK);
 
