@@ -3853,7 +3853,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID, CK_MECHANISM_TY
 		return(CKR_OK);
 	}
 
-	if (*pulCount < 2) {
+	if (*pulCount < 1) {
 		CACKEY_DEBUG_PRINTF("Error.  Buffer too small.");
 
 		return(CKR_BUFFER_TOO_SMALL);
