@@ -3228,10 +3228,23 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 	struct cackey_identity *identities;
 	unsigned long num_ids, id_idx, curr_id_type;
 	unsigned long num_certs, num_extra_certs, cert_idx;
+	int include_extra_certs = 1;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
-	num_extra_certs = sizeof(extra_certs) / sizeof(extra_certs[0]);
+	if (getenv("CACKEY_NO_EXTRA_CERTS") != NULL) {
+		CACKEY_DEBUG_PRINTF("Asked not to include extra (DoD) certificates");
+
+		include_extra_certs = 0;
+	}
+
+	if (include_extra_certs) {
+		num_extra_certs = sizeof(extra_certs) / sizeof(extra_certs[0]);
+
+		CACKEY_DEBUG_PRINTF("Including %i DoD Certificates as objects on this token", num_extra_certs);
+	} else {
+		num_extra_certs = 0;
+	}
 
 	if (ids_found == NULL) {
 		CACKEY_DEBUG_PRINTF("Error.  ids_found is NULL");
