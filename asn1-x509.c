@@ -204,6 +204,20 @@ static ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void 
 	return(x509.serial_number.asn1rep_len);
 }
 
+static ssize_t x509_to_pubkey(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
+	struct asn1_object null, pubkey, modulus, exponent;
+	struct x509_object x509;
+	int read_ret;
+
+	read_ret = asn1_x509_read_object(x509_der_buf, x509_der_buf_len, &x509);
+	if (read_ret != 0) {
+		return(-1);
+	}
+
+	*outbuf = x509.pubkey.contents;
+	return(x509.pubkey.size);
+}
+
 static ssize_t x509_to_modulus(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
 	struct asn1_object null, pubkey, modulus, exponent;
 	struct x509_object x509;

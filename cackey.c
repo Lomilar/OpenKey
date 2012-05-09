@@ -2826,7 +2826,14 @@ static CK_ATTRIBUTE_PTR cackey_get_attributes(CK_OBJECT_CLASS objectclass, struc
 
 						break;
 					case CKO_PUBLIC_KEY:
-						/* XXX: TODO */
+						if (certificate_len >= 0) {
+							x509_read_ret = x509_to_pubkey(certificate, certificate_len, &pValue);
+							if (x509_read_ret < 0) { 
+								pValue = NULL;
+							} else {
+								ulValueLen = x509_read_ret;
+							}
+						}
 
 						break;
 					case CKO_CERTIFICATE:
