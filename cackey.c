@@ -474,6 +474,131 @@ static const char *CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(uint8_t apptype) {
 	return("INVALID");
 }
 
+static const char *CACKEY_DEBUG_FUNC_ATTRIBUTE_TO_STR(CK_ATTRIBUTE_TYPE attr) {
+	switch (attr) {
+		case CKA_CLASS:
+			return("CKA_CLASS");
+		case CKA_TOKEN:
+			return("CKA_TOKEN");
+		case CKA_PRIVATE:
+			return("CKA_PRIVATE");
+		case CKA_LABEL:
+			return("CKA_LABEL");
+		case CKA_APPLICATION:
+			return("CKA_APPLICATION");
+		case CKA_VALUE:
+			return("CKA_VALUE");
+		case CKA_OBJECT_ID:
+			return("CKA_OBJECT_ID");
+		case CKA_CERTIFICATE_TYPE:
+			return("CKA_CERTIFICATE_TYPE");
+		case CKA_ISSUER:
+			return("CKA_ISSUER");
+		case CKA_SERIAL_NUMBER:
+			return("CKA_SERIAL_NUMBER");
+		case CKA_AC_ISSUER:
+			return("CKA_AC_ISSUER");
+		case CKA_OWNER:
+			return("CKA_OWNER");
+		case CKA_ATTR_TYPES:
+			return("CKA_ATTR_TYPES");
+		case CKA_TRUSTED:
+			return("CKA_TRUSTED");
+		case CKA_KEY_TYPE:
+			return("CKA_KEY_TYPE");
+		case CKA_SUBJECT:
+			return("CKA_SUBJECT");
+		case CKA_ID:
+			return("CKA_ID");
+		case CKA_SENSITIVE:
+			return("CKA_SENSITIVE");
+		case CKA_ENCRYPT:
+			return("CKA_ENCRYPT");
+		case CKA_DECRYPT:
+			return("CKA_DECRYPT");
+		case CKA_WRAP:
+			return("CKA_WRAP");
+		case CKA_UNWRAP:
+			return("CKA_UNWRAP");
+		case CKA_SIGN:
+			return("CKA_SIGN");
+		case CKA_SIGN_RECOVER:
+			return("CKA_SIGN_RECOVER");
+		case CKA_VERIFY:
+			return("CKA_VERIFY");
+		case CKA_VERIFY_RECOVER:
+			return("CKA_VERIFY_RECOVER");
+		case CKA_DERIVE:
+			return("CKA_DERIVE");
+		case CKA_START_DATE:
+			return("CKA_START_DATE");
+		case CKA_END_DATE:
+			return("CKA_END_DATE");
+		case CKA_MODULUS:
+			return("CKA_MODULUS");
+		case CKA_MODULUS_BITS:
+			return("CKA_MODULUS_BITS");
+		case CKA_PUBLIC_EXPONENT:
+			return("CKA_PUBLIC_EXPONENT");
+		case CKA_PRIVATE_EXPONENT:
+			return("CKA_PRIVATE_EXPONENT");
+		case CKA_PRIME_1:
+			return("CKA_PRIME_1");
+		case CKA_PRIME_2:
+			return("CKA_PRIME_2");
+		case CKA_EXPONENT_1:
+			return("CKA_EXPONENT_1");
+		case CKA_EXPONENT_2:
+			return("CKA_EXPONENT_2");
+		case CKA_COEFFICIENT:
+			return("CKA_COEFFICIENT");
+		case CKA_PRIME:
+			return("CKA_PRIME");
+		case CKA_SUBPRIME:
+			return("CKA_SUBPRIME");
+		case CKA_BASE:
+			return("CKA_BASE");
+		case CKA_PRIME_BITS:
+			return("CKA_PRIME_BITS");
+		case CKA_SUB_PRIME_BITS:
+			return("CKA_SUB_PRIME_BITS");
+		case CKA_VALUE_BITS:
+			return("CKA_VALUE_BITS");
+		case CKA_VALUE_LEN:
+			return("CKA_VALUE_LEN");
+		case CKA_EXTRACTABLE:
+			return("CKA_EXTRACTABLE");
+		case CKA_LOCAL:
+			return("CKA_LOCAL");
+		case CKA_NEVER_EXTRACTABLE:
+			return("CKA_NEVER_EXTRACTABLE");
+		case CKA_ALWAYS_SENSITIVE:
+			return("CKA_ALWAYS_SENSITIVE");
+		case CKA_KEY_GEN_MECHANISM:
+			return("CKA_KEY_GEN_MECHANISM");
+		case CKA_MODIFIABLE:
+			return("CKA_MODIFIABLE");
+		case CKA_ECDSA_PARAMS:
+			return("CKA_ECDSA_PARAMS");
+		case CKA_EC_POINT:
+			return("CKA_EC_POINT");
+		case CKA_SECONDARY_AUTH:
+			return("CKA_SECONDARY_AUTH");
+		case CKA_AUTH_PIN_FLAGS:
+			return("CKA_AUTH_PIN_FLAGS");
+		case CKA_HW_FEATURE_TYPE:
+			return("CKA_HW_FEATURE_TYPE");
+		case CKA_RESET_ON_INIT:
+			return("CKA_RESET_ON_INIT");
+		case CKA_HAS_RESET:
+			return("CKA_HAS_RESET");
+		case CKA_VENDOR_DEFINED:
+			return("CKA_VENDOR_DEFINED");
+	}
+
+	return("UNKNOWN");
+}
+
 #  define malloc(x) CACKEY_DEBUG_FUNC_MALLOC(x, __func__, __LINE__)
 #  define realloc(x, y) CACKEY_DEBUG_FUNC_REALLOC(x, y, __func__, __LINE__)
 #  ifdef strdup
@@ -488,6 +613,7 @@ static const char *CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(uint8_t apptype) {
 #  define CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(x) "DEBUG_DISABLED"
 #  define CACKEY_DEBUG_FUNC_OBJID_TO_STR(x) "DEBUG_DISABLED"
 #  define CACKEY_DEBUG_FUNC_APPTYPE_TO_STR(x) "DEBUG_DISABLED"
+#  define CACKEY_DEBUG_FUNC_ATTRIBUTE_TO_STR(x) "DEBUG_DISABLED"
 #endif
 
 struct cackey_pcsc_identity {
@@ -3263,7 +3389,7 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 	if (pcsc_identities != NULL) {
 		/* Convert number of Certs to number of objects */
 		num_ids = (CKO_PRIVATE_KEY - CKO_CERTIFICATE + 1) * num_certs;
-		num_ids += num_extra_certs * 2;
+		num_ids += num_extra_certs * 3;
 
 		identities = malloc(num_ids * sizeof(*identities));
 
@@ -3289,14 +3415,14 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 		for (cert_idx = 0; cert_idx < num_extra_certs; cert_idx++) {
 			identities[id_idx].pcsc_identity = NULL;
 			identities[id_idx].attributes = cackey_get_attributes(CKO_CERTIFICATE, &extra_certs[cert_idx], 0xf000 | cert_idx, &identities[id_idx].attributes_count);
-
 			id_idx++;
-		}
 
-		for (cert_idx = 0; cert_idx < num_extra_certs; cert_idx++) {
+			identities[id_idx].pcsc_identity = NULL;
+			identities[id_idx].attributes = cackey_get_attributes(CKO_PUBLIC_KEY, &extra_certs[cert_idx], 0xf000 | cert_idx, &identities[id_idx].attributes_count);
+			id_idx++;
+
 			identities[id_idx].pcsc_identity = NULL;
 			identities[id_idx].attributes = cackey_get_attributes(CKO_NETSCAPE_TRUST, &extra_certs[cert_idx], 0xf000 | cert_idx, &identities[id_idx].attributes_count);
-
 			id_idx++;
 		}
 
@@ -4914,7 +5040,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_H
 
 			curr_attr = &cackey_sessions[hSession].search_query[curr_attr_idx];
 
-			CACKEY_DEBUG_PRINTF("  Checking for attribute 0x%08lx in identity:%i...", (unsigned long) curr_attr->type, (int) curr_id_idx);
+			CACKEY_DEBUG_PRINTF("  Checking for attribute %s (0x%08lx) in identity:%i...", CACKEY_DEBUG_FUNC_ATTRIBUTE_TO_STR(curr_attr->type), (unsigned long) curr_attr->type, (int) curr_id_idx);
 			CACKEY_DEBUG_PRINTBUF("    Value looking for:", curr_attr->pValue, curr_attr->ulValueLen);
 
 			for (sess_attr_idx = 0; sess_attr_idx < curr_id->attributes_count; sess_attr_idx++) {
