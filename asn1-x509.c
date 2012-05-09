@@ -205,7 +205,6 @@ static ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void 
 }
 
 static ssize_t x509_to_pubkey(void *x509_der_buf, size_t x509_der_buf_len, void **outbuf) {
-	struct asn1_object null, pubkey, modulus, exponent;
 	struct x509_object x509;
 	int read_ret;
 
