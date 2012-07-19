@@ -3374,7 +3374,7 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 	if (include_extra_certs) {
 		num_extra_certs = sizeof(extra_certs) / sizeof(extra_certs[0]);
 
-		CACKEY_DEBUG_PRINTF("Including %i DoD Certificates as objects on this token", num_extra_certs);
+		CACKEY_DEBUG_PRINTF("Including %li DoD Certificates as objects on this token", num_extra_certs);
 	} else {
 		num_extra_certs = 0;
 	}
