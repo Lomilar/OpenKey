@@ -132,7 +132,8 @@ AC_LINK_IFELSE(
 
 		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, &hContext);
 
-		scard_conn_ret = SCardConnect(hContext, "Reader X", SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, &hCard, &dwActiveProtocol);
+		hCard = NULL;
+		scard_conn_ret = SCardConnect(hContext, "Reader X", SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, hCard, &dwActiveProtocol);
 	]]), [
 		AC_MSG_RESULT(okay)
 	], [
