@@ -174,15 +174,60 @@
 #  ifdef HAVE_TIME_H
 #    include <time.h>
 static time_t cackey_debug_start_time = 0;
-#    define CACKEY_DEBUG_PRINTTIME { if (cackey_debug_start_time == 0) { cackey_debug_start_time = time(NULL); }; fprintf(stderr, "[%lu]: ", (unsigned long) (time(NULL) - cackey_debug_start_time)); }
+#    define CACKEY_DEBUG_PRINTTIME { if (cackey_debug_start_time == 0) { cackey_debug_start_time = time(NULL); }; fprintf(cackey_debug_fd(), "[%lu]: ", (unsigned long) (time(NULL) - cackey_debug_start_time)); }
 #  else
 #    define CACKEY_DEBUG_PRINTTIME /**/
 #  endif
 
-#  define CACKEY_DEBUG_PRINTF(x...) { CACKEY_DEBUG_PRINTTIME; fprintf(stderr, "%s():%i: ", __func__, __LINE__); fprintf(stderr, x); fprintf(stderr, "\n"); fflush(stderr); }
-#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); CACKEY_DEBUG_PRINTTIME; fprintf(stderr, "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(stderr, ", %02x", TMPBUF[idx]); }; fprintf(stderr, "})\n"); fflush(stderr); }
-#  define CACKEY_DEBUG_PERROR(x) { fprintf(stderr, "%s():%i: ", __func__, __LINE__); CACKEY_DEBUG_PRINTTIME; perror(x); fflush(stderr); }
+#  define CACKEY_DEBUG_PRINTF(x...) { CACKEY_DEBUG_PRINTTIME; fprintf(cackey_debug_fd(), "%s():%i: ", __func__, __LINE__); fprintf(cackey_debug_fd(), x); fprintf(cackey_debug_fd(), "\n"); fflush(cackey_debug_fd()); }
+#  define CACKEY_DEBUG_PRINTBUF(f, x, y) { unsigned char *TMPBUF; unsigned long idx; TMPBUF = (unsigned char *) (x); CACKEY_DEBUG_PRINTTIME; fprintf(cackey_debug_fd(), "%s():%i: %s  (%s/%lu = {%02x", __func__, __LINE__, f, #x, (unsigned long) (y), TMPBUF[0]); for (idx = 1; idx < (y); idx++) { fprintf(cackey_debug_fd(), ", %02x", TMPBUF[idx]); }; fprintf(cackey_debug_fd(), "})\n"); fflush(cackey_debug_fd()); }
+#  define CACKEY_DEBUG_PERROR(x) { fprintf(cackey_debug_fd(), "%s():%i: ", __func__, __LINE__); CACKEY_DEBUG_PRINTTIME; perror(x); fflush(cackey_debug_fd()); }
 #  define free(x) { CACKEY_DEBUG_PRINTF("FREE(%p) (%s)", x, #x); free(x); }
+
+static FILE *cackey_debug_fd(void) {
+	static FILE *fd = NULL;
+	char *logfile;
+
+	if (fd != NULL) {
+		return(fd);
+	}
+
+	/*
+	 * Log to stderr initially so we can use debugging within
+	 * this function without getting into an infinite loop
+	 */
+	fd = stderr;
+
+	logfile = getenv("CACKEY_DEBUG_LOGFILE");
+	if (logfile != NULL) {
+		CACKEY_DEBUG_PRINTF("Found environment variable: %s", logfile);
+
+		logfile = strchr(logfile, '=');
+		if (logfile == NULL) {
+			logfile = getenv("CACKEY_DEBUG_LOGFILE");
+		} else {
+			logfile++;
+		}
+	}
+
+	if (logfile != NULL) {
+		CACKEY_DEBUG_PRINTF("Found log file: %s", logfile);
+
+		fd = fopen(logfile, "a");
+	}
+
+	if (fd == NULL) {
+		fd = stderr;
+	}
+
+	if (fd == stderr) {
+		CACKEY_DEBUG_PRINTF("Returning stderr");
+	} else {
+		CACKEY_DEBUG_PRINTF("Returning %p", fd);
+	}
+
+	return(fd);
+}
 
 static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
 	void *retval;
@@ -190,10 +235,10 @@ static void *CACKEY_DEBUG_FUNC_MALLOC(size_t size, const char *func, int line) {
 	retval = malloc(size);
 
 	CACKEY_DEBUG_PRINTTIME;
-	fprintf(stderr, "%s():%i: ", func, line);
-	fprintf(stderr, "MALLOC() = %p", retval);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	fprintf(cackey_debug_fd(), "%s():%i: ", func, line);
+	fprintf(cackey_debug_fd(), "MALLOC() = %p", retval);
+	fprintf(cackey_debug_fd(), "\n");
+	fflush(cackey_debug_fd());
 
 	return(retval);
 }
@@ -205,10 +250,10 @@ static void *CACKEY_DEBUG_FUNC_REALLOC(void *ptr, size_t size, const char *func,
 
 	if (retval != ptr) {
 		CACKEY_DEBUG_PRINTTIME;
-		fprintf(stderr, "%s():%i: ", func, line);
-		fprintf(stderr, "REALLOC(%p) = %p", ptr, retval);
-		fprintf(stderr, "\n");
-		fflush(stderr);
+		fprintf(cackey_debug_fd(), "%s():%i: ", func, line);
+		fprintf(cackey_debug_fd(), "REALLOC(%p) = %p", ptr, retval);
+		fprintf(cackey_debug_fd(), "\n");
+		fflush(cackey_debug_fd());
 	}
 
 	if (retval == NULL) {
@@ -224,10 +269,10 @@ static char *CACKEY_DEBUG_FUNC_STRDUP(const char *ptr, const char *func, int lin
 	retval = strdup(ptr);
 
 	CACKEY_DEBUG_PRINTTIME;
-	fprintf(stderr, "%s():%i: ", func, line);
-	fprintf(stderr, "STRDUP_MALLOC() = %p", retval);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	fprintf(cackey_debug_fd(), "%s():%i: ", func, line);
+	fprintf(cackey_debug_fd(), "STRDUP_MALLOC() = %p", retval);
+	fprintf(cackey_debug_fd(), "\n");
+	fflush(cackey_debug_fd());
 
 	return(retval);
 }
