@@ -366,7 +366,7 @@ static ssize_t x509_dn_to_string(void *asn1_der_buf, size_t asn1_der_buf_len, ch
 
 	offset = 0;
 	while (1) {
-		read_ret = asn1_x509_read_asn1_object(whole_thing.contents + offset, whole_thing.size - offset, &current_set, NULL);
+		read_ret = asn1_x509_read_asn1_object(((unsigned char *) whole_thing.contents) + offset, whole_thing.size - offset, &current_set, NULL);
 		if (read_ret != 0) {
 			break;
 		}
