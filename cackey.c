@@ -2696,7 +2696,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
  */
 static ssize_t cackey_pcsc_identity_to_label(struct cackey_pcsc_identity *identity, unsigned char *label_buf, unsigned long label_buf_len) {
 	unsigned long certificate_len;
-	char *label_asn1;
+	void *label_asn1;
 	void *certificate;
 	int x509_read_ret;
 
