@@ -238,6 +238,7 @@ int main_pkcs11(void) {
 			return(1);
 		}
 
+		printf("    Id     : %lu\n", (unsigned long) slots[currSlot]);
 		printf("    Desc   : %.*s\n", 32, slotInfo.slotDescription);
 		printf("    ManufID: %.*s\n", 32, slotInfo.manufacturerID);
 		printf("    HWVers : %i.%i\n", slotInfo.hardwareVersion.major, slotInfo.hardwareVersion.minor);
@@ -329,6 +330,11 @@ int main_pkcs11(void) {
 
 	chk_rv = C_OpenSession(slots[0], CKF_SERIAL_SESSION, NULL, NULL, &hSession);
 	if (chk_rv == CKR_OK) {
+		chk_rv = C_GetTokenInfo(slots[0], &tokenInfo);
+		if (chk_rv != CKR_OK) {
+			return(1);
+		}
+
 		if ((tokenInfo.flags & CKF_LOGIN_REQUIRED) == CKF_LOGIN_REQUIRED) {
 			fgets_ret = NULL;
 
