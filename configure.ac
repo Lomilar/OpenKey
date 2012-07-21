@@ -143,6 +143,11 @@ AC_LINK_IFELSE(
 	]
 )
 
+dnl Option to enable DoD certs on hardware slot
+AC_ARG_ENABLE(dod-certs-on-hw-slots, AC_HELP_STRING([--enable-dod-certs-on-hw-slots], [Specify that DoD certificates should be made available on hardware token slots]), [
+	AC_DEFINE(CACKEY_CARD_SLOT_INCLUDE_EXTRA_CERTS, [1], [Specify that DoD certificates should be made available on hardware token slots])
+])
+
 dnl Set version script, to limit the scope of symbols
 DC_SETVERSIONSCRIPT(libcackey.vers, libcackey.syms)
 
