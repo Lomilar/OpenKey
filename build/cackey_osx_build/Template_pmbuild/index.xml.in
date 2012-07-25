@@ -49,8 +49,8 @@ Public License (GPL):\
 \
 The files in the source directory and the "leakcheck" directory are the intellectual\
 property of the United States Government.  It is not clear which, if any,\
-license is made on them.  In addition, as of 07-JUN-2010 they have not be\
-cleared for public release.\
+license is made on them.  In addition, as of 07-JUN-2010 they have not\
+been cleared for public release.\
 \
 The files in the "pkcs11/" directory are licensed under the terms of the\
 following licenses:\
