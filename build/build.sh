@@ -32,6 +32,7 @@ if [ "${SNAPSHOT}" != "1" ]; then
 
 	mkdir build || exit 1
 	cp -rp build_delete/cackey_win32_build build/
+	cp -rp build_delete/cackey_win64_build build/
 fi
 
 exit 0
