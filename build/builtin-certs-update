@@ -1,5 +1,7 @@
 #! /bin/bash
 
+set -e
+
 ourdir="$(dirname "$(which "$0")")"
 cd "${outdir}" || exit 1
 
