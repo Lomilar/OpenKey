@@ -3,7 +3,7 @@ all: cert-1.crt CPCA_TRCA.crt CommonPolicy.crt
 	grep -l 'Subject: C=US, O=U.S. Government, OU=FPKI, CN=Federal Common Policy CA' *.crt  | xargs grep -H 'Issuer:' | grep -v 'Issuer: C=us, O=U.S. Government, OU=FBCA, CN=Common Policy' | cut -f 1 -d : | xargs rm -f
 
 CPCA_TRCA.crt:
-	wget -O - --no-check-certificate https://pki.treas.gov/CPCA_TRCA.cer | openssl x509 -text > "$@.new"
+	wget -O - --no-check-certificate https://pki.treas.gov/CPCA_TRCA.cer | openssl x509 -text -inform der > "$@.new"
 	mv "$@.new" "$@"
 
 caCertsIssuedTofcpca.p7c:
