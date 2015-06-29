@@ -1,8 +1,10 @@
 all: cert-0.crt
 
 rel3_dodroot_2048.cac:
-	wget -O "$@.new" http://dodpki.c3pki.chamb.disa.mil/rel3_dodroot_2048.cac
-	mv "$@.new" "$@"
+	wget -O Certificates_PKCS7_v4.1_DoD.zip http://iasecontent.disa.mil/pki-pke/Certificates_PKCS7_v4.1_DoD.zip
+	unzip Certificates_PKCS7_v4.1_DoD.zip Certificates_PKCS7_v4.1_DoD/Certificates_PKCS7_v4.1_DoD.der.p7b
+	mv Certificates_PKCS7_v4.1_DoD/Certificates_PKCS7_v4.1_DoD.der.p7b "$@"
+	rm -rf Certificates_PKCS7_v4.1_DoD Certificates_PKCS7_v4.1_DoD.zip
 
 cert-%.crt: rel3_dodroot_2048.cac
 	idx=0; \
