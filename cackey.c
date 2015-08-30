@@ -2619,7 +2619,19 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 
 					uncompress_ret = inflateInit(&gzip_stream);
 					if (uncompress_ret == Z_OK) {
-						uncompress_ret = inflateReset2(&gzip_stream, 31);
+						/* Try again as a gzip buffer */
+						uncompress_ret = inflateEnd(&gzip_stream);
+						if (uncompress_ret == Z_OK) {
+							gzip_stream.zalloc = NULL;
+							gzip_stream.zfree = NULL;
+							gzip_stream.opaque = NULL;
+
+							gzip_stream.next_in  = curr_id->certificate;
+							gzip_stream.avail_in = curr_id->certificate_len;
+							gzip_stream.next_out = tmpbuf;
+							gzip_stream.avail_out = tmpbuflen;
+							uncompress_ret = inflateInit2(&gzip_stream, 31);
+						}
 					}
 					if (uncompress_ret == Z_OK) {
 						uncompress_ret = inflate(&gzip_stream, 0);
