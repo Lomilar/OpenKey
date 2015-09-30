@@ -148,11 +148,20 @@ pkgbuild() {
 	else
 		TAR=tar
 	fi
+	TOKENDSHA256="800a1d307df4117b2096a824dfc7ccca1ebecb5caf5fa98c1e531ac6f6b672a0"
+	curl http://devel.kvanals.org/PKCS11_Tokend/PKCS11_tokend-latest.tar.gz > PKCS11_tokend-latest.tar.gz
+	if [ "${TOKENDSHA256}" != "`shasum -a 256 PKCS11_tokend-latest.tar.gz | awk '{print $1}'`" ]; then
+		echo "SHA-256 Checksum does NOT match for TokenD!  Verify there was a new upstream release and update the build script!"
+		rm -f PKCS11_tokend-latest.tar.gz
+		exit 1
+	fi
 	if [ "${OSX}" = "Leopard" ]; then
-		curl http://devel.kvanals.org/PKCS11_Tokend/PKCS11_tokend-latest.tar.gz | gzip -d -c | ${TAR} --strip-components 3 --wildcards -x -f - "PKCS11_tokend-*/prebuilt/leopard/PKCS11.tokend"
+		cat PKCS11_tokend-latest.tar.gz | gzip -d -c | ${TAR} --strip-components 3 --wildcards -x -f - "PKCS11_tokend-*/prebuilt/leopard/PKCS11.tokend"
+		rm -f PKCS11_tokend-latest.tar.gz
 		mv PKCS11.tokend build/cackey_osx_build/PKCS11.tokend
 	else
-		curl http://devel.kvanals.org/PKCS11_Tokend/PKCS11_tokend-latest.tar.gz | gzip -d -c | ${TAR} --strip-components 3 --wildcards -x -f - "PKCS11_tokend-*/prebuilt/snowleopard/PKCS11.tokend"
+		cat PKCS11_tokend-latest.tar.gz | gzip -d -c | ${TAR} --strip-components 3 --wildcards -x -f - "PKCS11_tokend-*/prebuilt/snowleopard/PKCS11.tokend"
+		rm -f PKCS11_tokend-latest.tar.gz
 		mv PKCS11.tokend build/cackey_osx_build/PKCS11.tokend
 	fi
 	for PMDOC in build/cackey_osx_build/Template_pmbuild/*.in; do
