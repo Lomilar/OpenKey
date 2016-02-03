@@ -13,8 +13,14 @@ cd "$(dirname "${ourScript}")" || exit 1
 
 patchDir="$(pwd)/patches"
 
-if [ -z "${NACL_SDK_PEPPER}" ]; then
-	echo "error: Please set NACL_SDK_PEPPER to the path of the current pepper target" >&2
+if [ -z "${NACL_SDK_ROOT}" ]; then
+	echo "error: Please set NACL_SDK_ROOT to the path of the current NaCl SDK target" >&2
+
+	exit 1
+fi
+
+if [ ! -d "${NACL_SDK_ROOT}/toolchain" ]; then
+	echo "error: Invalid NACL_SDK_ROOT, not found: ${NACL_SDK_ROOT}/toolchain" >&2
 
 	exit 1
 fi
@@ -353,7 +359,7 @@ case "${buildOutputType}" in
 		exit 1
 		;;
 esac
-PATH="${PATH}:${NACL_SDK_PEPPER}/toolchain/${naclTopDir}/bin" buildCACKey "${naclPlatform}" --host="${naclPlatform}" CC=${naclPlatform}-gcc LD=${naclPlatform}-ld OBJCOPY=${naclPlatform}-objcopy STRIP=${naclPlatform}-strip || exit 1
+PATH="${PATH}:${NACL_SDK_ROOT}/toolchain/${naclTopDir}/bin" buildCACKey "${naclPlatform}" --host="${naclPlatform}" CC=${naclPlatform}-gcc LD=${naclPlatform}-ld OBJCOPY=${naclPlatform}-objcopy STRIP=${naclPlatform}-strip || exit 1
 
 cleanup
 
