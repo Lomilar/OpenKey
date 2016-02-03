@@ -255,7 +255,7 @@ function buildPCSCLite() {
 
 		extraDefines='-DPCSCLITE_STATIC_DRIVER -DIFDHANDLERv3'
 
-		./configure --prefix='' --sbindir="/bin" "${configure_extra[@]}" CFLAGS="-g3 -ggdb3 ${CFLAGS} ${extraDefines}" CPPFLAGS="${CPPFLAGS} ${extraDefines}" LIBS="${LIBS} -L${cackeyChromeExtCCIDDir}/lib -lccid" || exit 1
+		./configure --prefix='' --sbindir="/bin" "${configure_extra[@]}" CFLAGS="${CFLAGS} ${extraDefines}" CPPFLAGS="${CPPFLAGS} ${extraDefines}" LIBS="${LIBS} -L${cackeyChromeExtCCIDDir}/lib -lccid" || exit 1
 		make V=1 || exit 1
 		make V=1 DESTDIR="${instdir}" install || exit 1
 	) || return 1
