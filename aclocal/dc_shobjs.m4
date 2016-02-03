@@ -22,9 +22,11 @@ int unrestst(void);], [ printf("okay\n"); unrestst(); return(0); ], [ SHOBJFLAGS
 AC_DEFUN(DC_GET_SHOBJFLAGS, [
   AC_SUBST(SHOBJFLAGS)
   AC_SUBST(SHOBJLDFLAGS)
+  AC_SUBST(DEFAULT_TARGET)
 
   AC_MSG_CHECKING(how to create shared objects)
 
+  DEFAULT_TARGET=shared
   if test -z "$SHOBJFLAGS" -a -z "$SHOBJLDFLAGS"; then
     DC_TEST_SHOBJFLAGS([-fPIC -DPIC], [-shared -rdynamic], [
       DC_TEST_SHOBJFLAGS([-fPIC -DPIC], [-shared], [
@@ -37,8 +39,7 @@ AC_DEFUN(DC_GET_SHOBJFLAGS, [
 		    DC_TEST_SHOBJFLAGS([-fPIC -DPIC], [-Wl,-dynamiclib -Wl,-flat_namespace -Wl,-undefined,suppress -Wl,-bind_at_load], [
 		      DC_TEST_SHOBJFLAGS([-fPIC -DPIC], [-dynamiclib -flat_namespace -undefined suppress], [
 		        DC_TEST_SHOBJFLAGS([-fPIC -DPIC], [-dynamiclib], [
-		          AC_MSG_RESULT(cant)
-		          AC_MSG_ERROR([We are unable to make shared objects.])
+                          DEFAULT_TARGET=static
                         ])
 		      ])
 		    ])
@@ -52,7 +53,11 @@ AC_DEFUN(DC_GET_SHOBJFLAGS, [
     ])
   fi
 
-  AC_MSG_RESULT($SHOBJLDFLAGS $SHOBJFLAGS)
+  if test "$DEFAULT_TARGET" = 'shared' ; then
+    AC_MSG_RESULT($SHOBJLDFLAGS $SHOBJFLAGS)
+  else
+    AC_MSG_RESULT(cant -- result will be a static archive)
+  fi
 
   DC_SYNC_SHLIBOBJS
 ])

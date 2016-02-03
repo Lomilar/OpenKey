@@ -289,6 +289,7 @@ function buildPCSCLite() {
 function buildCACKey() {
 	local platform
 	local file copied
+	local targets
 
 	platform="$1"
 	shift
@@ -309,7 +310,7 @@ function buildCACKey() {
 	) || return 1
 
 	copied='0'
-	for file in ../../libcackey{,_g}.{so,dll,dylib}; do
+	for file in ../../libcackey{,_g}.{so,dll,dylib,a}; do
 		if [ -f "${file}" ]; then
 			mkdir -p "${outdir}/${platform}"
 
@@ -347,19 +348,7 @@ buildPCSCLite || exit 1
 
 buildCACKey build || exit 1
 
-buildOutputType="$(echo 'int main(int argc, char **argv) { return(0); }' | "${CC:-cc}" -x c - -o /dev/stdout | file -)" || exit 1
-case "${buildOutputType}" in
-	*x86-64*)
-		naclTopDir='linux_x86_glibc'
-		naclPlatform='x86_64-nacl'
-		;;
-	*)
-		echo "error: Unrecognized platform output: \"${buildOutputType}\"" >&2
-
-		exit 1
-		;;
-esac
-PATH="${PATH}:${NACL_SDK_ROOT}/toolchain/${naclTopDir}/bin" buildCACKey "${naclPlatform}" --host="${naclPlatform}" CC=${naclPlatform}-gcc LD=${naclPlatform}-ld OBJCOPY=${naclPlatform}-objcopy STRIP=${naclPlatform}-strip || exit 1
+PATH="${PATH}:${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin" buildCACKey pnacl --host="nacl" CC=pnacl-clang LD=pnacl-ld OBJCOPY=pnacl-objcopy STRIP=pnacl-strip AR=pnacl-ar RANLIB=pnacl-ranlib cackey_cv_pcsc_works=okay || exit 1
 
 cleanup
 

@@ -14,9 +14,15 @@ exec_prefix = @exec_prefix@
 libdir = @libdir@
 @SET_MAKE@
 
-all:
+all: @DEFAULT_TARGET@
+
+shared:
 	$(MAKE) libcackey.@SHOBJEXT@
 	-$(MAKE) libcackey_g.@SHOBJEXT@
+
+static:
+	$(MAKE) libcackey.a
+	-$(MAKE) libcackey_g.a
 
 cackey.o: cackey.c cackey_builtin_certs.h sha1.c sha1.h md5.c md5.h asn1-x509.c asn1-x509.h config.h
 	$(CC) $(SHOBJFLAGS) $(CPPFLAGS) $(CFLAGS) -o cackey.o -c cackey.c
@@ -32,6 +38,16 @@ libcackey.@SHOBJEXT@: cackey.o
 libcackey_g.@SHOBJEXT@: cackey_g.o
 	$(CC) $(SHOBJFLAGS) $(DEBUGCPPFLAGS) $(DEBUGCFLAGS) $(SHOBJLDFLAGS) $(LDFLAGS) -o libcackey_g.@SHOBJEXT@ cackey_g.o $(LIBS)
 	-@WEAKENSYMS@ "libcackey_g.@SHOBJEXT@"
+
+libcackey.a: cackey.o
+	rm -f libcackey.a
+	$(AR) rcu libcackey.a cackey.o
+	-$(RANLIB) libcackey.a
+
+libcackey_g.a: cackey_g.o
+	rm -f libcackey_g.a
+	$(AR) rcu libcackey_g.a cackey_g.o
+	-$(RANLIB) libcackey_g.a
 
 test: test.c libcackey_g.@SHOBJEXT@
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey_g.@SHOBJEXT@
@@ -72,4 +88,4 @@ distclean: clean
 mrproper: distclean
 	rm -f configure config.h.in aclocal.m4 *~
 
-.PHONY: all clean distclean mrproper install
+.PHONY: all shared static clean distclean mrproper install

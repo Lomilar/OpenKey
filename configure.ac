@@ -83,9 +83,9 @@ dnl Check for ZLIB libraries
 AC_CHECK_LIB(z, uncompress)
 
 dnl Verify that a basic program will compile
-AC_MSG_CHECKING([if basic PC/SC program works])
-AC_LINK_IFELSE(
-	AC_LANG_PROGRAM([[
+AC_CACHE_CHECK([if basic PC/SC program works], cackey_cv_pcsc_works, [
+	AC_LINK_IFELSE(
+		AC_LANG_PROGRAM([[
 #ifdef HAVE_WINTYPES_H
 #  include <wintypes.h>
 #endif
@@ -124,24 +124,27 @@ AC_LINK_IFELSE(
 #    include <zlib.h>
 #  endif
 #endif
-	]], [[
-		LPSCARDHANDLE hCard;
-		SCARDCONTEXT hContext;
-		DWORD dwActiveProtocol;
-		LONG scard_conn_ret, scard_est_context_ret;
+		]], [[
+			LPSCARDHANDLE hCard;
+			SCARDCONTEXT hContext;
+			DWORD dwActiveProtocol;
+			LONG scard_conn_ret, scard_est_context_ret;
 
-		scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, &hContext);
+			scard_est_context_ret = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, &hContext);
 
-		hCard = NULL;
-		scard_conn_ret = SCardConnect(hContext, "Reader X", SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, hCard, &dwActiveProtocol);
-	]]), [
-		AC_MSG_RESULT(okay)
-	], [
-		AC_MSG_RESULT(failed)
-
-		AC_MSG_FAILURE([simple PC/SC program failed])
+			hCard = NULL;
+			scard_conn_ret = SCardConnect(hContext, "Reader X", SCARD_SHARE_SHARED, SCARD_PROTOCOL_T0, hCard, &dwActiveProtocol);
+		]]), [
+			cackey_cv_pcsc_works=okay
+		], [
+			cackey_cv_pcsc_works=failed
+		])
 	]
 )
+
+if test "$cackey_cv_pcsc_works" = 'failed'; then
+	AC_MSG_FAILURE([simple PC/SC program failed])
+fi
 
 dnl Option to enable DoD certs on hardware slot
 AC_ARG_ENABLE(dod-certs-on-hw-slots, AC_HELP_STRING([--enable-dod-certs-on-hw-slots], [Specify that DoD certificates should be made available on hardware token slots]), [
