@@ -13,6 +13,12 @@ cd "$(dirname "${ourScript}")" || exit 1
 
 patchDir="$(pwd)/patches"
 
+if [ -z "${NACL_SDK_PEPPER}" ]; then
+	echo "error: Please set NACL_SDK_PEPPER to the path of the current pepper target" >&2
+
+	exit 1
+fi
+
 function download() {
 	local url file hash
 	local hashMethod
@@ -262,32 +268,46 @@ function buildPCSCLite() {
 
 	cackeyChromeExtPCSCLiteDir="$(cd "${instdir}" && pwd)"
 	export PCSC_CFLAGS="-I${cackeyChromeExtPCSCLiteDir}/include/PCSC"
-	export PCSC_LIBS="-L${cackeyChromeExtPCSCLiteDir}/lib -lpcsclite -pthread"
+	export PCSC_LIBS="-L${cackeyChromeExtPCSCLiteDir}/lib/dummy -lpcsclite"
 
+	# Create dummy PC/SC library -- just enough to past CACKey linking test
+	mkdir "${cackeyChromeExtPCSCLiteDir}/lib/dummy" || return 1
+	echo 'void SCardEstablishContext(void) { return; }; void SCardConnect(void) { return; }' | gcc -x c - -fPIC -shared -o "${cackeyChromeExtPCSCLiteDir}/lib/dummy/libpcsclite.so"
+
+	# Copy statically linked "pcscd" out
 	cp "${cackeyChromeExtPCSCLiteDir}/bin/pcscd" "${outdir}" || return 1
-
-	mkdir "${outdir}/include" || return 1
-	cp "${cackeyChromeExtPCSCLiteDir}/include/PCSC"/*.h "${outdir}/include" || return 1
 
 	return 0
 }
 
 function buildCACKey() {
+	local platform
 	local file copied
+
+	platform="$1"
+	shift
+
+	if [ -z "${platform}" ]; then
+		echo 'error: Platform not specified' >&2
+
+		return 1
+	fi
 
 	(
 		cd ../.. || exit 1
 
 		make distclean
 
-		./configure --with-pcsc-headers="${cackeyChromeExtPCSCLiteDir}/include/PCSC" --with-pcsc-libs="${PCSC_LIBS}" || exit 1
+		./configure --with-pcsc-headers="${cackeyChromeExtPCSCLiteDir}/include/PCSC" --with-pcsc-libs="${PCSC_LIBS}" "$@" || exit 1
 		make || exit 1
 	) || return 1
 
 	copied='0'
 	for file in ../../libcackey{,_g}.{so,dll,dylib}; do
 		if [ -f "${file}" ]; then
-			cp "${file}" "${outdir}"
+			mkdir -p "${outdir}/${platform}"
+
+			cp "${file}" "${outdir}/${platform}"
 			copied='1'
 		fi
 	done
@@ -298,10 +318,19 @@ function buildCACKey() {
 		return 1
 	fi
 
-	rm -rf "${cackeyChromeExtPCSCLiteDir}"
-	unset PCSC_CFLAGS PCSC_LIBS
-
 	return 0
+}
+
+function cleanup() {
+	if [ -n "${cackeyChromeExtPCSCLiteDir}" ]; then
+		rm -rf "${cackeyChromeExtPCSCLiteDir}"
+		unset PCSC_CFLAGS PCSC_LIBS
+	fi
+
+	if [ -n "${cackeyChromeExtLibUSBDir}" ]; then
+		rm -rf "${cackeyChromeExtLibUSBDir}"
+		unset LIBUSB_LIBS LIBUSB_CFLAGS
+	fi
 }
 
 outdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.out"
@@ -310,6 +339,22 @@ mkdir "${outdir}" || exit 1
 
 buildPCSCLite || exit 1
 
-buildCACKey || exit 1
+buildCACKey build || exit 1
+
+buildOutputType="$(echo 'int main(int argc, char **argv) { return(0); }' | "${CC:-cc}" -x c - -o /dev/stdout | file -)" || exit 1
+case "${buildOutputType}" in
+	*x86-64*)
+		naclTopDir='linux_x86_glibc'
+		naclPlatform='x86_64-nacl'
+		;;
+	*)
+		echo "error: Unrecognized platform output: \"${buildOutputType}\"" >&2
+
+		exit 1
+		;;
+esac
+PATH="${PATH}:${NACL_SDK_PEPPER}/toolchain/${naclTopDir}/bin" buildCACKey "${naclPlatform}" --host="${naclPlatform}" CC=${naclPlatform}-gcc LD=${naclPlatform}-ld OBJCOPY=${naclPlatform}-objcopy STRIP=${naclPlatform}-strip || exit 1
+
+cleanup
 
 exit 0
