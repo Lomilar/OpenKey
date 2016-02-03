@@ -17,3 +17,5 @@ build/certs
 test
 test-afl
 test-afl.data
+build/chrome/archive
+build/chrome/workdir-*

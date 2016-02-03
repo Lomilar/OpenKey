@@ -1,0 +1,312 @@
+#! /usr/bin/env bash
+
+# f24353d02d90f97c72b6977f3a8a05006ad06120
+
+ourScript="$(which "$0")"
+if ! head -3 "${ourScript}" 2>/dev/null | grep f24353d02d90f97c72b6977f3a8a05006ad06120 >/dev/null; then
+	echo "error: Unable to find ourselves" >&2
+
+	exit 1
+fi
+
+cd "$(dirname "${ourScript}")" || exit 1
+
+patchDir="$(pwd)/patches"
+
+function download() {
+	local url file hash
+	local hashMethod
+	local chkHash
+
+	url="$1"
+	file="$2"
+	hash="$3"
+
+	if [ -f "${file}" ]; then
+		return 0
+	fi
+
+	mkdir -p "$(dirname "${file}")"
+
+	hashMethod='sha256'
+
+	rm -f "${file}.new"
+	wget --header "X-Cache-URL: ${url}" -O "${file}.new" "http://hashcache.rkeene.org/${hashMethod}/${hash}" || \
+		wget -O "${file}.new" "${url}" || \
+		return 1
+
+	chkHash="$(openssl "${hashMethod}" "${file}.new" | sed 's@.*= *@@')"
+
+	if [ "${chkHash}" != "${hash}" ]; then
+		echo "error: Checksum mismatch: Got: ${chkHash}; Expected: ${hash}" >&2
+
+		return 1
+	fi
+
+	mv "${file}.new" "${file}"
+
+	return 0
+}
+
+function extract() {
+	local file directory
+
+	file="$1"
+	directory="$2"
+
+	if [ ! -f "${file}" ]; then
+		echo "error: Unable to extract \"${file}\"" >&2
+
+		return 1
+	fi
+
+	rm -rf "${directory}"
+
+	mkdir -p "${directory}" || return 1
+	(
+		cd "${directory}" || exit 1
+
+		case "${file}" in
+			*.tar.bz2|*.bz2)
+				bzip2 -dc | tar -xf - || exit 1
+				;;
+			*.tar.gz|*.tgz)
+				gzip -dc | tar -xf - || exit 1
+				;;
+			*.tar.xz|*.txz)
+				xz -dc | tar -xf - || exit 1
+				;;
+			*)
+				echo "error: Don't know what to do with \"${file}\"" >&2
+
+				exit 1
+				;;
+		esac
+
+		if [ -d "$(echo *)" ]; then
+			mv */* . >/dev/null 2>/dev/null
+		fi
+	) < "${file}" || return 1
+
+	return 0
+}
+
+function make() {
+	"${MAKE:-$(which make)}" "$@"
+}
+
+function buildLibUSB() {
+	local version url pkg sha256 configure_extra
+	local archive workdir instdir
+
+	pkg='libusb'
+	version='1.0.9'
+	url="http://sourceforge.net/projects/libusb/files/libusb-1.0/libusb-${version}/libusb-${version}.tar.bz2"
+	sha256='e920eedc2d06b09606611c99ec7304413c6784cba6e33928e78243d323195f9b'
+	configure_extra=(--disable-shared --enable-static --with-pic "${global_configure_extra[@]}")
+
+	archive="archive/${pkg}-${version}.tar.bz2"
+	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
+	instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
+
+	download "${url}" "${archive}" "${sha256}" || return 1
+	extract "${archive}" "${workdir}" || return 1
+
+	(
+		mkdir "${instdir}"
+
+		instdir="$(cd "${instdir}" && pwd)" || exit 1
+
+		cd "${workdir}" || exit 1
+
+		./configure --prefix='' "${configure_extra[@]}" || exit 1
+		make V=1 || exit 1
+		make V=1 DESTDIR="${instdir}" install || exit 1
+	) || return 1
+
+	rm -rf "${workdir}"
+
+	cackeyChromeExtLibUSBDir="$(cd "${instdir}" && pwd)" || return 1
+	export LIBUSB_LIBS="-L${cackeyChromeExtLibUSBDir}/lib -lusb-1.0 -lrt -pthread"
+	export LIBUSB_CFLAGS="-I${cackeyChromeExtLibUSBDir}/include/libusb-1.0"
+
+	return 0
+}
+
+function buildCCID() {
+	local version url pkg sha256 configure_extra
+	local archive workdir instdir
+
+	pkg='ccid'
+	version='1.4.22'
+	url="https://alioth.debian.org/frs/download.php/file/4162/ccid-${version}.tar.bz2"
+	sha256='9c5c8be465b6d33316be7a7ea720c24a776e2d76be9072116d28fc9adf58c106'
+	configure_extra=(
+		--with-pic
+		--disable-shared --enable-static --enable-usb
+		--enable-usbdropdir=/drivers
+		"${global_configure_extra[@]}"
+	)
+
+	archive="archive/${pkg}-${version}.tar.bz2"
+	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
+	instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
+
+	download "${url}" "${archive}" "${sha256}" || return 1
+	extract "${archive}" "${workdir}" || return 1
+
+	(
+		mkdir "${instdir}"
+
+		instdir="$(cd "${instdir}" && pwd)" || exit 1
+
+		cd "${workdir}" || exit 1
+
+		./configure --prefix='' "${configure_extra[@]}" || exit 1
+
+		make V=1 || exit 1
+
+		mkdir "${instdir}/lib"
+		cp src/.libs/libccid.a "${instdir}/lib"
+
+		mkdir "${instdir}/include"
+		./src/create_Info_plist.pl ./readers/supported_readers.txt src/Info.plist.src --target=libccid.so --version=1.0.0 | \
+			sed '/<key>ifdDriverOptions/ {n;c \'$'\n''<string>0x0004</string>'$'\n''p}' | \
+			od -t x1 -v | sed 's@^[^ ]* @@;s@ @@g;s@..@\\x&@g;$ d;s@^@"@;s@$@"@' > "${instdir}/include/Info.plist.h"
+	) || return 1
+
+	rm -rf "${workdir}"
+
+	cackeyChromeExtCCIDDir="$(cd "${instdir}" && pwd)" || return 1
+
+	return 0
+}
+
+function buildPCSCLite() {
+	local version url pkg sha256 configure_extra
+	local archive workdir instdir
+
+	buildLibUSB || return 1
+
+	pkg='pcsc-lite'
+	version='1.8.15'
+	url="https://alioth.debian.org/frs/download.php/file/4157/pcsc-lite-${version}.tar.bz2"
+	sha256='ad8b1f3d2c59d3a966cb203fc74588629c4a5fa30f8ad9005e06ef7aa445d341'
+	configure_extra=(
+		--disable-shared --enable-static --enable-usb --disable-libudev --disable-polkit --with-pic
+		"${global_configure_extra[@]}"
+	)
+
+	archive="archive/${pkg}-${version}.tar.bz2"
+	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
+	instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
+
+	download "${url}" "${archive}" "${sha256}" || return 1
+	extract "${archive}" "${workdir}" || return 1
+
+	(
+		mkdir "${instdir}"
+
+		instdir="$(cd "${instdir}" && pwd)" || exit 1
+
+		cd "${workdir}" || exit 1
+
+		./configure --prefix='' --sbindir="/bin" "${configure_extra[@]}" || exit 1
+		make V=1 || exit 1
+		make V=1 DESTDIR="${instdir}" install || exit 1
+	) || return 1
+
+	cackeyChromeExtPCSCLiteDir="$(cd "${instdir}" && pwd)"
+	export PCSC_CFLAGS="-I${cackeyChromeExtPCSCLiteDir}/include/PCSC"
+	export PCSC_LIBS="-L${cackeyChromeExtPCSCLiteDir}/lib -lpcsclite -pthread"
+
+	buildCCID || return 1
+
+	rm -rf "${instdir}"
+	unset PCSC_CFLAGS PCSC_LIBS cackeyChromeExtPCSCLiteDir
+
+	rm -rf "${workdir}"
+	extract "${archive}" "${workdir}" || return 1
+
+	(
+		mkdir "${instdir}"
+
+		instdir="$(cd "${instdir}" && pwd)" || exit 1
+
+		cd "${workdir}" || exit 1
+
+		sed -i 's@^pcscd_LDFLAGS[[:space:]]*=@& -all-static @' src/Makefile.in
+
+		for patchFile in "${patchDir}"/pcsc-lite-*.diff; do
+			if [ ! -f "${patchFile}" ]; then
+				continue
+			fi
+
+			patch -p1 < "${patchFile}" || exit 1
+		done
+
+		cp "${cackeyChromeExtCCIDDir}/include/Info.plist.h" src/ || exit 1
+
+		extraDefines='-DPCSCLITE_STATIC_DRIVER -DIFDHANDLERv3'
+
+		./configure --prefix='' --sbindir="/bin" "${configure_extra[@]}" CFLAGS="-g3 -ggdb3 ${CFLAGS} ${extraDefines}" CPPFLAGS="${CPPFLAGS} ${extraDefines}" LIBS="${LIBS} -L${cackeyChromeExtCCIDDir}/lib -lccid" || exit 1
+		make V=1 || exit 1
+		make V=1 DESTDIR="${instdir}" install || exit 1
+	) || return 1
+
+	rm -rf "${cackeyChromeExtLibUSBDir}"
+	unset LIBUSB_LIBS LIBUSB_CFLAGS
+
+	rm -rf "${cackeyChromeExtCCIDDir}"
+	rm -rf "${workdir}"
+
+	cackeyChromeExtPCSCLiteDir="$(cd "${instdir}" && pwd)"
+	export PCSC_CFLAGS="-I${cackeyChromeExtPCSCLiteDir}/include/PCSC"
+	export PCSC_LIBS="-L${cackeyChromeExtPCSCLiteDir}/lib -lpcsclite -pthread"
+
+	cp "${cackeyChromeExtPCSCLiteDir}/bin/pcscd" "${outdir}" || return 1
+
+	return 0
+}
+
+function buildCACKey() {
+	local file copied
+
+	(
+		cd ../.. || exit 1
+
+		make distclean
+
+		./configure --with-pcsc-headers="${cackeyChromeExtPCSCLiteDir}/include/PCSC" --with-pcsc-libs="${PCSC_LIBS}" || exit 1
+		make || exit 1
+	) || return 1
+
+	copied='0'
+	for file in ../../libcackey{,_g}.{so,dll,dylib}; do
+		if [ -f "${file}" ]; then
+			cp "${file}" "${outdir}"
+			copied='1'
+		fi
+	done
+
+	if [ "${copied}" = '0' ]; then
+		echo "error: Unable to copy built libcackey to local directory" >&2
+
+		return 1
+	fi
+
+	rm -rf "${cackeyChromeExtPCSCLiteDir}"
+	unset PCSC_CFLAGS PCSC_LIBS
+
+	return 0
+}
+
+outdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.out"
+rm -rf "${outdir}"
+mkdir "${outdir}" || exit 1
+
+buildPCSCLite || exit 1
+
+buildCACKey || exit 1
+
+exit 0

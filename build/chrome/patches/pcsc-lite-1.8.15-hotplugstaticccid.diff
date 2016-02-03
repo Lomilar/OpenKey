@@ -1,0 +1,190 @@
+diff --no-dereference -uNr pcsc-lite-1.8.15.orig/src/hotplug_libusb.c pcsc-lite-1.8.15-hotplugstaticccid/src/hotplug_libusb.c
+--- pcsc-lite-1.8.15.orig/src/hotplug_libusb.c	2015-11-06 02:39:51.000000000 -0600
++++ pcsc-lite-1.8.15-hotplugstaticccid/src/hotplug_libusb.c	2016-02-02 23:05:02.738140506 -0600
+@@ -128,21 +128,10 @@
+ static LONG HPReadBundleValues(void)
+ {
+ 	LONG rv;
+-	DIR *hpDir;
+-	struct dirent *currFP = NULL;
+ 	char fullPath[FILENAME_MAX];
+ 	char fullLibPath[FILENAME_MAX];
+ 	int listCount = 0;
+ 
+-	hpDir = opendir(PCSCLITE_HP_DROPDIR);
+-
+-	if (hpDir == NULL)
+-	{
+-		Log1(PCSC_LOG_ERROR, "Cannot open PC/SC drivers directory: " PCSCLITE_HP_DROPDIR);
+-		Log1(PCSC_LOG_ERROR, "Disabling USB support for pcscd.");
+-		return -1;
+-	}
+-
+ 	/* allocate a first array */
+ 	driverTracker = calloc(DRIVER_TRACKER_SIZE_STEP, sizeof(*driverTracker));
+ 	if (NULL == driverTracker)
+@@ -158,12 +147,8 @@
+ 	{ \
+ 		Log2(PCSC_LOG_ERROR, "Value/Key not defined for " key " in %s", \
+ 			fullPath); \
+-		continue; \
+ 	}
+ 
+-	while ((currFP = readdir(hpDir)) != 0)
+-	{
+-		if (strstr(currFP->d_name, ".bundle") != 0)
+ 		{
+ 			unsigned int alias;
+ 			list_t plist, *values;
+@@ -171,24 +156,16 @@
+ 			char *libraryPath;
+ 			int ifdCapabilities;
+ 
+-			/*
+-			 * The bundle exists - let's form a full path name and get the
+-			 * vendor and product ID's for this particular bundle
+-			 */
+-			snprintf(fullPath, sizeof(fullPath), "%s/%s/Contents/Info.plist",
+-				PCSCLITE_HP_DROPDIR, currFP->d_name);
+-			fullPath[sizeof(fullPath) - 1] = '\0';
+-
+-			rv = bundleParse(fullPath, &plist);
++			rv = bundleParse("", &plist);
+ 			if (rv)
+-				continue;
++				return -1;
+ 
+ 			/* get CFBundleExecutable */
+ 			GET_KEY(PCSCLITE_HP_LIBRKEY_NAME, &values)
+ 			libraryPath = list_get_at(values, 0);
+ 			(void)snprintf(fullLibPath, sizeof(fullLibPath),
+ 				"%s/%s/Contents/%s/%s",
+-				PCSCLITE_HP_DROPDIR, currFP->d_name, PCSC_ARCH,
++				PCSCLITE_HP_DROPDIR, "", PCSC_ARCH,
+ 				libraryPath);
+ 			fullLibPath[sizeof(fullLibPath) - 1] = '\0';
+ 
+@@ -215,7 +192,7 @@
+ 				driverTracker[listCount].readerName = strdup(list_get_at(readerNames, alias));
+ 
+ 				/* constant entries for a same driver */
+-				driverTracker[listCount].bundleName = strdup(currFP->d_name);
++				driverTracker[listCount].bundleName = strdup("");
+ 				driverTracker[listCount].libraryPath = strdup(fullLibPath);
+ 				driverTracker[listCount].ifdCapabilities = ifdCapabilities;
+ 
+@@ -240,7 +217,6 @@
+ 					{
+ 						Log1(PCSC_LOG_CRITICAL, "Not enough memory");
+ 						driverSize = -1;
+-						closedir(hpDir);
+ 						return -1;
+ 					}
+ 
+@@ -258,10 +234,8 @@
+ 			}
+ 			bundleRelease(&plist);
+ 		}
+-	}
+ 
+ 	driverSize = listCount;
+-	closedir(hpDir);
+ 
+ 	rv = TRUE;
+ 	if (driverSize == 0)
+diff --no-dereference -uNr pcsc-lite-1.8.15.orig/src/parser.h pcsc-lite-1.8.15-hotplugstaticccid/src/parser.h
+--- pcsc-lite-1.8.15.orig/src/parser.h	2015-11-06 02:39:51.000000000 -0600
++++ pcsc-lite-1.8.15-hotplugstaticccid/src/parser.h	2016-02-02 14:04:35.619279091 -0600
+@@ -48,6 +48,7 @@
+ 
+ int LTPBundleFindValueWithKey(list_t *l, const char *key, list_t **values);
+ int bundleParse(const char *fileName, list_t *l);
++int bundleParseContents(const char *plistContents, list_t *l);
+ void bundleRelease(list_t *l);
+ 
+ #endif
+diff --no-dereference -uNr pcsc-lite-1.8.15.orig/src/pcscdaemon.c pcsc-lite-1.8.15-hotplugstaticccid/src/pcscdaemon.c
+--- pcsc-lite-1.8.15.orig/src/pcscdaemon.c	2015-11-06 02:39:51.000000000 -0600
++++ pcsc-lite-1.8.15-hotplugstaticccid/src/pcscdaemon.c	2016-02-02 13:45:36.214210985 -0600
+@@ -641,7 +641,7 @@
+ 	(void)signal(SIGHUP, SIG_IGN);	/* needed for Solaris. The signal is sent
+ 				 * when the shell is existed */
+ 
+-#if !defined(PCSCLITE_STATIC_DRIVER) && defined(USE_USB)
++#if defined(USE_USB)
+ 	/*
+ 	 * Set up the search for USB/PCMCIA devices
+ 	 */
+diff --no-dereference -uNr pcsc-lite-1.8.15.orig/src/tokenparser.l pcsc-lite-1.8.15-hotplugstaticccid/src/tokenparser.l
+--- pcsc-lite-1.8.15.orig/src/tokenparser.l	2015-11-06 02:39:51.000000000 -0600
++++ pcsc-lite-1.8.15-hotplugstaticccid/src/tokenparser.l	2016-02-02 23:05:44.680142552 -0600
+@@ -200,36 +200,51 @@
+  */
+ int bundleParse(const char *fileName, list_t *l)
+ {
+-	FILE *file = NULL;
++	return(bundleParseContents(
++#include "Info.plist.h"
++		, l));
++}
++
++/**
++ * Parse a Info.plist file's contents as a string and return a list
++ *
++ * @param plistContents plist contents
++ * @param l list containing the results
++ * @retval -1 configuration file not found
++ * @retval 0 OK
++ */
++int bundleParseContents(const char *plistContents, list_t *l)
++{
+ 	int r;
+-#ifndef NDEBUG
+-	int i;
+-#endif
++	char *tmpBuffer;
++	size_t plistContentsLen;
+ 
+-	file = fopen(fileName, "r");
+-	if (!file)
+-	{
+-		Log3(PCSC_LOG_CRITICAL, "Could not open bundle file %s: %s",
+-			fileName, strerror(errno));
+-		return 1;
++	plistContentsLen = strlen(plistContents);
++
++	if (plistContentsLen == 0) {
++		return(-1);
++	}
++
++	tmpBuffer = strdup(plistContents);
++	if (tmpBuffer == NULL) {
++		return(-1);
+ 	}
+ 
+ 	r = list_init(l);
+ 	assert(r >= 0);
+-	(void)r;
+ 
+ 	ListKeys = l;
+-	yyin = file;
+ 
+-	do
+-	{
+-		(void)yylex();
+-	} while (!feof(file));
+-	yylex_destroy();
++	YY_BUFFER_STATE yyTmpBuffer = yy_scan_string(tmpBuffer); 
++	while (yylex() != 0) {
++		/**/
++	}
++	yy_delete_buffer(yyTmpBuffer);
+ 
+-	(void)fclose(file);
++	yylex_destroy();
+ 
+ #ifndef NDEBUG
++	int i;
+ 	printf("size: %d\n", list_size(l));
+ 	for (i=0; i < list_size(l); i++)
+ 	{
