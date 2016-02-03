@@ -211,7 +211,7 @@ static ssize_t x509_to_serial(void *x509_der_buf, size_t x509_der_buf_len, void 
 
 	read_ret = asn1_x509_read_object(x509_der_buf, x509_der_buf_len, &x509);
 	if (read_ret != 0) {
-		CACKEY_DEBUG_PRINTF("Unable to read serial number from a %lu byte buffer", x509_der_buf_len);
+		CACKEY_DEBUG_PRINTF("Unable to read serial number from a %lu byte buffer", (unsigned long) x509_der_buf_len);
 		CACKEY_DEBUG_PRINTBUF("X.509 DER:", x509_der_buf, x509_der_buf_len);
 
 		return(-1);
