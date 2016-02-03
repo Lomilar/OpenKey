@@ -266,6 +266,9 @@ function buildPCSCLite() {
 
 	cp "${cackeyChromeExtPCSCLiteDir}/bin/pcscd" "${outdir}" || return 1
 
+	mkdir "${outdir}/include" || return 1
+	cp "${cackeyChromeExtPCSCLiteDir}/include/PCSC"/*.h "${outdir}/include" || return 1
+
 	return 0
 }
 
