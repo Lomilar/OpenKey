@@ -28,3 +28,4 @@ build/chrome/cackey-chrome.o
 build/chrome/cackey-chrome-init.o
 build/chrome/cackey.pexe
 build/chrome/cackey.nmf
+build/chrome/cackey.crx
