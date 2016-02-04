@@ -13,7 +13,12 @@ CXXFLAGS    = $(CFLAGS)
 PATH += :${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin
 export PATH
 
-all: cackey.pexe cackey.nmf
+all: cackey.crx
+
+cackey.crx: cackey.pexe cackey.nmf manifest.json cackey.js
+	rm -f cackey.crx
+	zip cackey.crx.new $^
+	mv cackey.crx.new cackey.crx
 
 cackey.pexe: cackey-chrome.o cackey-chrome-init.o lib/libcackey.a lib/libpcsc.a lib/libz.a
 	$(CXX) -o cackey.pexe.new cackey-chrome.o cackey-chrome-init.o $(LIBS)
