@@ -197,7 +197,9 @@ function buildBoost() {
 
 		./b2 --debug-configuration toolset=gcc-pnacl target-os=linux link=static runtime-link=static || exit 1
 
-		./bjam install || exit 1
+		./bjam install | grep -v '^common.copy '
+
+		exit 0
 	) || return 1
 
 	rm -rf "${workdir}"
@@ -306,7 +308,7 @@ function buildCACKey() {
 
 		make distclean
 
-		./configure --host=nacl --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay || exit 1
+		./configure --host=nacl --with-pcsc-headers="${instdir}/include/PCSC" --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay || exit 1
 		make || exit 1
 	) || return 1
 
