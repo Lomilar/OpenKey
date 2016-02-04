@@ -13,12 +13,16 @@ CXXFLAGS    = $(CFLAGS)
 PATH += :${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin
 export PATH
 
-all: cackey.pexe
+all: cackey.pexe cackey.nmf
 
 cackey.pexe: cackey-chrome.o cackey-chrome-init.o lib/libcackey.a lib/libpcsc.a lib/libz.a
 	$(CXX) -o cackey.pexe.new cackey-chrome.o cackey-chrome-init.o $(LIBS)
 	$(FINALIZE) cackey.pexe.new
 	mv cackey.pexe.new cackey.pexe
+
+cackey.nmf: cackey.pexe
+	${NACL_SDK_ROOT}/tools/create_nmf.py cackey.pexe > cackey.nmf.new
+	mv cackey.nmf.new cackey.nmf
 
 lib/libcackey.a: build-deps
 	mkdir -p lib
@@ -26,16 +30,19 @@ lib/libcackey.a: build-deps
 	rm -rf workdir-*
 	./build-deps
 	cd lib && ln -s ../workdir-*.inst/lib/libcackey.a .
+	touch lib/libcackey.a
 
 lib/libpcsc.a: lib/libcackey.a
 	mkdir -p lib
 	rm -f lib/libpcsc.a
 	cd lib && ln -s ../workdir-*.inst/lib/libpcsc.a .
+	touch lib/libpcsc.a
 
 lib/libz.a: lib/libcackey.a
 	mkdir -p lib
 	rm -f lib/libz.a
 	cd lib && ln -s ../workdir-*.inst/lib/libz.a .
+	touch lib/libz.a
 
 cackey-chrome.o: cackey-chrome.c
 cackey-chrome-init.o: cackey-chrome-init.cc
