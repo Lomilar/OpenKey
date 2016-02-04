@@ -23,6 +23,8 @@ test-afl
 test-afl.data
 build/chrome/archive
 build/chrome/workdir-*
-build/chrome/libcackey.a
+build/chrome/lib
 build/chrome/cackey-chrome.o
-build/chrome/cackey-chrome.pexe
+build/chrome/cackey-chrome-init.o
+build/chrome/cackey.pexe
+build/chrome/cackey.nmf
