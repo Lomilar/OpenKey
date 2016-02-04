@@ -12,6 +12,10 @@ configure
 install-sh
 libcackey_g.so
 libcackey.so
+libcackey_g.dll
+libcackey.dll
+libcackey_g.a
+libcackey.a
 libcackey.syms
 build/certs
 test
@@ -19,3 +23,6 @@ test-afl
 test-afl.data
 build/chrome/archive
 build/chrome/workdir-*
+build/chrome/libcackey.a
+build/chrome/cackey-chrome.o
+build/chrome/cackey-chrome.pexe

@@ -25,6 +25,32 @@ if [ ! -d "${NACL_SDK_ROOT}/toolchain" ]; then
 	exit 1
 fi
 
+# Setup cross-compiler toolchain
+## Set path to include the tools
+PATH="${PATH}:${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin"
+export PATH
+
+## Set variables needed by projects
+HOST_CC="$(which "${CC:-cc}")"
+BUILD_CC="${HOST_CC}"
+CC_FOR_BUILD="${HOST_CC}"
+AR=pnacl-ar
+AS=pnacl-as
+LD=pnacl-ld
+CC=pnacl-clang
+CXX=pnacl-clang++
+RANLIB=pnacl-ranlib
+STRIP=pnacl-strip
+OBJCOPY=pnacl-objcopy
+export HOST_CC BUILD_CC CC_FOR_BUILD AR AS LD CC CXX RANLIB STRIP OBJCOPY
+
+## Set some CFLAGS that the compiler fails to internally set
+CFLAGS="-I${NACL_SDK_ROOT}/include"
+CXXFLAGS="${CFLAGS}"
+CPPFLAGS="${CFLAGS}"
+export CFLAGS CXXFLAGS CPPFLAGS
+
+# Function to download files from the interwebs and verify them
 function download() {
 	local url file hash
 	local hashMethod
@@ -60,6 +86,8 @@ function download() {
 	return 0
 }
 
+# Extract an archive into a directory, stripping the top-level directory
+# if that is all that it contains
 function extract() {
 	local file directory
 
@@ -88,6 +116,11 @@ function extract() {
 			*.tar.xz|*.txz)
 				xz -dc | tar -xf - || exit 1
 				;;
+			*.zip)
+				cat > x.zip || exit 1
+				unzip x.zip || exit 1
+				rm -f x.zip
+				;;
 			*)
 				echo "error: Don't know what to do with \"${file}\"" >&2
 
@@ -103,253 +136,197 @@ function extract() {
 	return 0
 }
 
+# User-overridable "make"
 function make() {
 	"${MAKE:-$(which make)}" "$@"
 }
 
-function buildLibUSB() {
+# Build "zlib"
+function buildZlib() {
 	local version url pkg sha256 configure_extra
-	local archive workdir instdir
+	local archive workdir
 
-	pkg='libusb'
-	version='1.0.9'
-	url="http://sourceforge.net/projects/libusb/files/libusb-1.0/libusb-${version}/libusb-${version}.tar.bz2"
-	sha256='e920eedc2d06b09606611c99ec7304413c6784cba6e33928e78243d323195f9b'
-	configure_extra=(--disable-shared --enable-static --with-pic "${global_configure_extra[@]}")
+	pkg='zlib'
+	version='1.2.8'
+	url="http://zlib.net/zlib-${version}.tar.gz"
+	sha256='36658cb768a54c1d4dec43c3116c27ed893e88b02ecfcb44f2166f9c0b7f2a0d'
 
-	archive="archive/${pkg}-${version}.tar.bz2"
+	archive="archive/${pkg}-${version}.tar.gz"
 	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
-	instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
 
 	download "${url}" "${archive}" "${sha256}" || return 1
 	extract "${archive}" "${workdir}" || return 1
 
 	(
-		mkdir "${instdir}"
-
-		instdir="$(cd "${instdir}" && pwd)" || exit 1
-
 		cd "${workdir}" || exit 1
 
-		./configure --prefix='' "${configure_extra[@]}" || exit 1
-		make V=1 || exit 1
-		make V=1 DESTDIR="${instdir}" install || exit 1
+		./configure --prefix=/ --libdir=/lib --static || exit 1
+		make || exit 1
+		make DESTDIR="${instdir}" install || exit 1
 	) || return 1
 
 	rm -rf "${workdir}"
-
-	cackeyChromeExtLibUSBDir="$(cd "${instdir}" && pwd)" || return 1
-	export LIBUSB_LIBS="-L${cackeyChromeExtLibUSBDir}/lib -lusb-1.0 -lrt -pthread"
-	export LIBUSB_CFLAGS="-I${cackeyChromeExtLibUSBDir}/include/libusb-1.0"
 
 	return 0
 }
 
-function buildCCID() {
+# Build "boost"
+function buildBoost() {
 	local version url pkg sha256 configure_extra
-	local archive workdir instdir
+	local archive workdir
 
-	pkg='ccid'
-	version='1.4.22'
-	url="https://alioth.debian.org/frs/download.php/file/4162/ccid-${version}.tar.bz2"
-	sha256='9c5c8be465b6d33316be7a7ea720c24a776e2d76be9072116d28fc9adf58c106'
-	configure_extra=(
-		--with-pic
-		--disable-shared --enable-static --enable-usb
-		--enable-usbdropdir=/drivers
-		"${global_configure_extra[@]}"
-	)
+	pkg='boost'
+	version='1.57.0'
+	url="http://downloads.sourceforge.net/project/boost/boost/${version}/boost_`echo ${version} | sed 's_\._\__g'`.tar.bz2"
+	sha256='910c8c022a33ccec7f088bd65d4f14b466588dda94ba2124e78b8c57db264967'
 
 	archive="archive/${pkg}-${version}.tar.bz2"
 	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
-	instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
 
 	download "${url}" "${archive}" "${sha256}" || return 1
 	extract "${archive}" "${workdir}" || return 1
 
 	(
-		mkdir "${instdir}"
-
-		instdir="$(cd "${instdir}" && pwd)" || exit 1
-
 		cd "${workdir}" || exit 1
 
-		./configure --prefix='' "${configure_extra[@]}" || exit 1
+		./bootstrap.sh --prefix="${instdir}" --with-python=false --show-libraries
 
-		make V=1 || exit 1
+		./bootstrap.sh --prefix="${instdir}" --with-python=false --without-libraries='atomic,chrono,container,context,coroutine,date_time,exception,filesystem,graph,graph_parallel,iostreams,locale,log,math,mpi,program_options,python,random,regex,serialization,signals,system,test,thread,timer,wave' || exit 1
 
-		mkdir "${instdir}/lib"
-		cp src/.libs/libccid.a "${instdir}/lib"
+		echo "using gcc : pnacl : ${CXX} ;" >> project-config.jam
 
-		mkdir "${instdir}/include"
-		./src/create_Info_plist.pl ./readers/supported_readers.txt src/Info.plist.src --target=libccid.so --version=1.0.0 | \
-			sed '/<key>ifdDriverOptions/ {n;c \'$'\n''<string>0x0004</string>'$'\n''p}' | \
-			od -t x1 -v | sed 's@^[^ ]* @@;s@ @@g;s@..@\\x&@g;$ d;s@^@"@;s@$@"@' > "${instdir}/include/Info.plist.h"
+		./b2 --debug-configuration toolset=gcc-pnacl target-os=linux link=static runtime-link=static || exit 1
+
+		./bjam install || exit 1
 	) || return 1
 
 	rm -rf "${workdir}"
-
-	cackeyChromeExtCCIDDir="$(cd "${instdir}" && pwd)" || return 1
 
 	return 0
 }
 
-function buildPCSCLite() {
+# Build the libpcsc we need
+function buildPCSC() {
 	local version url pkg sha256 configure_extra
-	local archive workdir instdir
+	local archive workdir
 
-	buildLibUSB || return 1
+	buildBoost || return 1
 
-	pkg='pcsc-lite'
-	version='1.8.15'
-	url="https://alioth.debian.org/frs/download.php/file/4157/pcsc-lite-${version}.tar.bz2"
-	sha256='ad8b1f3d2c59d3a966cb203fc74588629c4a5fa30f8ad9005e06ef7aa445d341'
-	configure_extra=(
-		--disable-shared --enable-static --enable-usb --disable-libudev --disable-polkit --with-pic
-		"${global_configure_extra[@]}"
-	)
+	pkg='smart-card-client-c-example-app-sources'
+	version='0.0.0'
+	sha256='68970c6dc4b55d24a453bcfe5768af2b877f553a92a390be7f935db6223d4bc5'
 
-	archive="archive/${pkg}-${version}.tar.bz2"
+	archive="archive/${pkg}.zip"
 	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
-	instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
 
-	download "${url}" "${archive}" "${sha256}" || return 1
 	extract "${archive}" "${workdir}" || return 1
 
 	(
-		mkdir "${instdir}"
-
-		instdir="$(cd "${instdir}" && pwd)" || exit 1
-
 		cd "${workdir}" || exit 1
 
-		./configure --prefix='' --sbindir="/bin" "${configure_extra[@]}" || exit 1
-		make V=1 || exit 1
-		make V=1 DESTDIR="${instdir}" install || exit 1
-	) || return 1
+		# Copy out PC/SC headers for later use
+		mkdir -p "${instdir}/include/PCSC" || exit 1
+		cp third_party/pcsc-lite/src/src/PCSC/*.h "${instdir}/include/PCSC" || exit 1
 
-	cackeyChromeExtPCSCLiteDir="$(cd "${instdir}" && pwd)"
-	export PCSC_CFLAGS="-I${cackeyChromeExtPCSCLiteDir}/include/PCSC"
-	export PCSC_LIBS="-L${cackeyChromeExtPCSCLiteDir}/lib -lpcsclite -pthread"
+		# Copy out JavaScript files for later use
+		mkdir "${instdir}/js" || exit 1
+		cp third_party/pcsc-lite/client-side/*.js "${instdir}/js" || exit 1
 
-	buildCCID || return 1
-
-	rm -rf "${instdir}"
-	unset PCSC_CFLAGS PCSC_LIBS cackeyChromeExtPCSCLiteDir
-
-	rm -rf "${workdir}"
-	extract "${archive}" "${workdir}" || return 1
-
-	(
-		mkdir "${instdir}"
-
-		instdir="$(cd "${instdir}" && pwd)" || exit 1
-
-		cd "${workdir}" || exit 1
-
-		sed -i 's@^pcscd_LDFLAGS[[:space:]]*=@& -all-static @' src/Makefile.in
-
-		for patchFile in "${patchDir}"/pcsc-lite-*.diff; do
-			if [ ! -f "${patchFile}" ]; then
-				continue
-			fi
-
-			patch -p1 < "${patchFile}" || exit 1
+		# Build libpcsc
+		## Assemble all the files into a single tree
+		for file in logging.h scard_structs_serialization.h dom_requests_manager.h thread_safe_string_pool.h \
+		    pp_var_utils.cc pp_var_utils.h scard_structs_serialization.cc dom_requests_manager.cc logging.cc; do
+			find . -type f -name "${file}" -exec cp '{}' third_party/pcsc-lite/client-side/ ';'
 		done
 
-		cp "${cackeyChromeExtCCIDDir}/include/Info.plist.h" src/ || exit 1
+		## Create Makefile
+		cat << \_EOF_ > third_party/pcsc-lite/client-side/Makefile || exit 1
+CFLAGS   += -Wall -std=gnu++11
+CXXFLAGS += -Wall -std=gnu++11
+CPPFLAGS += -I../src/src/PCSC
 
-		extraDefines='-DPCSCLITE_STATIC_DRIVER -DIFDHANDLERv3'
+OBJS = pcsc_nacl.o pcsc_nacl_global.o scard_structs_serialization.o pp_var_utils.o logging.o dom_requests_manager.o
 
-		./configure --prefix='' --sbindir="/bin" "${configure_extra[@]}" CFLAGS="${CFLAGS} ${extraDefines}" CPPFLAGS="${CPPFLAGS} ${extraDefines}" LIBS="${LIBS} -L${cackeyChromeExtCCIDDir}/lib -lccid" || exit 1
-		make V=1 || exit 1
-		make V=1 DESTDIR="${instdir}" install || exit 1
+all: libpcsc.a
+
+libpcsc.a: $(OBJS)
+	rm -f libpcsc.a
+	$(AR) rc libpcsc.a $(OBJS)
+	-$(RANLIB) libpcsc.a
+
+pcsc_nacl.o: pcsc_nacl.cc pcsc_nacl.h logging.h pp_var_utils.h scard_structs_serialization.h
+pcsc_nacl.h: dom_requests_manager.h thread_safe_string_pool.h
+
+pcsc_nacl_global.o: pcsc_nacl_global.cc pcsc_nacl_global.h logging.h
+pcsc_nacl_global.h: pcsc_nacl.h
+
+pp_var_utils.o: pp_var_utils.cc pp_var_utils.h logging.h
+pp_var_utils.h: logging.h
+
+scard_structs_serialization.o: scard_structs_serialization.cc scard_structs_serialization.h pp_var_utils.h
+scard_structs_serialization.h: pp_var_utils.h
+
+dom_requests_manager.o: dom_requests_manager.cc dom_requests_manager.h logging.h pp_var_utils.h
+
+logging.o: logging.cc logging.h
+
+clean:
+	rm -f $(OBJS)
+	rm -f libpcsc.a
+
+distclean: clean
+
+.PHONY: all clean distclean
+_EOF_
+
+		## Make it
+		make -C third_party/pcsc-lite/client-side || exit 1
+
+		# Install the built libpcsc
+		mkdir -p "${instdir}/lib" || exit 1
+		cp third_party/pcsc-lite/client-side/libpcsc.a "${instdir}/lib" || exit 1
 	) || return 1
 
-	rm -rf "${cackeyChromeExtLibUSBDir}"
-	unset LIBUSB_LIBS LIBUSB_CFLAGS
-
-	rm -rf "${cackeyChromeExtCCIDDir}"
 	rm -rf "${workdir}"
-
-	cackeyChromeExtPCSCLiteDir="$(cd "${instdir}" && pwd)"
-	export PCSC_CFLAGS="-I${cackeyChromeExtPCSCLiteDir}/include/PCSC"
-	export PCSC_LIBS="-L${cackeyChromeExtPCSCLiteDir}/lib/dummy -lpcsclite"
-
-	# Create dummy PC/SC library -- just enough to past CACKey linking test
-	mkdir "${cackeyChromeExtPCSCLiteDir}/lib/dummy" || return 1
-	echo 'void SCardEstablishContext(void) { return; }; void SCardConnect(void) { return; }' | gcc -x c - -fPIC -shared -o "${cackeyChromeExtPCSCLiteDir}/lib/dummy/libpcsclite.so"
-
-	# Copy statically linked "pcscd" out
-	cp "${cackeyChromeExtPCSCLiteDir}/bin/pcscd" "${outdir}" || return 1
 
 	return 0
 }
 
+# Build our CACKey
 function buildCACKey() {
 	local platform
 	local file copied
 	local targets
 
-	platform="$1"
-	shift
-
-	if [ -z "${platform}" ]; then
-		echo 'error: Platform not specified' >&2
-
-		return 1
-	fi
+	buildZlib || return 1
+	buildPCSC || return 1
 
 	(
 		cd ../.. || exit 1
 
 		make distclean
 
-		./configure --with-pcsc-headers="${cackeyChromeExtPCSCLiteDir}/include/PCSC" --with-pcsc-libs="${PCSC_LIBS}" "$@" || exit 1
+		./configure --host=nacl --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay || exit 1
 		make || exit 1
 	) || return 1
 
-	copied='0'
-	for file in ../../libcackey{,_g}.{so,dll,dylib,a}; do
-		if [ -f "${file}" ]; then
-			mkdir -p "${outdir}/${platform}"
-
-			cp "${file}" "${outdir}/${platform}"
-			copied='1'
-		fi
-	done
-
-	if [ "${copied}" = '0' ]; then
-		echo "error: Unable to copy built libcackey to local directory" >&2
-
-		return 1
-	fi
+	mkdir -p "${instdir}/lib"
+	cp ../../libcackey.a ../../libcackey_g.a "${instdir}/lib" || return 1
 
 	return 0
 }
 
-function cleanup() {
-	if [ -n "${cackeyChromeExtPCSCLiteDir}" ]; then
-		rm -rf "${cackeyChromeExtPCSCLiteDir}"
-		unset PCSC_CFLAGS PCSC_LIBS
-	fi
+instdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.inst"
+rm -rf "${instdir}"
+mkdir "${instdir}" || exit 1
+instdir="$(cd "${instdir}" && pwd)" || exit 1
 
-	if [ -n "${cackeyChromeExtLibUSBDir}" ]; then
-		rm -rf "${cackeyChromeExtLibUSBDir}"
-		unset LIBUSB_LIBS LIBUSB_CFLAGS
-	fi
-}
+CFLAGS="${CFLAGS} -I${instdir}/include"
+CPPFLAGS="${CPPFLAGS} -I${instdir}/include"
+CXXFLAGS="${CXXFLAGS} -I${instdir}/include"
+LDFLAGS="${LDFLAGS} -L${instdir}/lib"
+export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
 
-outdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.out"
-rm -rf "${outdir}"
-mkdir "${outdir}" || exit 1
-
-buildPCSCLite || exit 1
-
-buildCACKey build || exit 1
-
-PATH="${PATH}:${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin" buildCACKey pnacl --host="nacl" CC=pnacl-clang LD=pnacl-ld OBJCOPY=pnacl-objcopy STRIP=pnacl-strip AR=pnacl-ar RANLIB=pnacl-ranlib cackey_cv_pcsc_works=okay || exit 1
-
-cleanup
+buildCACKey || exit 1
 
 exit 0
