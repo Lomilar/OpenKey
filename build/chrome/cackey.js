@@ -300,6 +300,40 @@ function onCertificatesRejected(rejectedCerts) {
 	return;
 }
 
+var cackeyHandle = null;
+
+function cackeyInitLoaded(messageEvent) {
+	console.log("Loaded CACKey PNaCl Module");
+
+	/* Register listeners with Chrome */
+	chrome.certificateProvider.onCertificatesRequested.addListener(cackeyListCertificates);
+	chrome.certificateProvider.onSignDigestRequested.addListener(cackeySignMessage);
+}
+
+function cackeyInit() {
+	var elementEmbed;
+
+	if (cackeyHandle != null) {
+		return;
+	}
+
+	elementEmbed = document.createElement('embed');
+	elementEmbed.type = "application/x-pnacl";
+	elementEmbed.width = 0;
+	elementEmbed.height = 0;
+	elementEmbed.src = "cackey.nmf";
+	elementEmbed.id = "cackeyModule";
+	elementEmbed.addEventListener('error', function(messageEvent) { console.error("Error loading CACKey PNaCl Module: " + messageEvent.data); }, true);
+	elementEmbed.addEventListener('load', cackeyInitLoaded, true);
+	elementEmbed.addEventListener('message', function(messageEvent) { console.log("Start message"); console.log(messageEvent.data); console.log("End message"); }, true);
+
+	new GoogleSmartCard.PcscNacl(elementEmbed);
+
+	document.body.appendChild(elementEmbed)
+
+	cackeyHandle = elementEmbed;
+}
+
 function cackeyListCertificates(chromeCallback) {
 	var certificates = [];
 
@@ -388,6 +422,8 @@ function cackeySignMessage(signRequest, chromeCallback) {
 	return;
 }
 
-/* Register listeners with Chrome */
-chrome.certificateProvider.onCertificatesRequested.addListener(cackeyListCertificates);
-chrome.certificateProvider.onSignDigestRequested.addListener(cackeySignMessage);
+/* Enable debugging */
+GoogleSmartCard.logger.setLevel(GoogleSmartCard.Logger.prototype.DEBUG);
+
+/* Initialize CACKey */
+cackeyInit();

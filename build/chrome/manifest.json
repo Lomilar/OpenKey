@@ -3,9 +3,14 @@
 	"name": "CACKey",
 	"version": "0.7.5.1",
 
-	"background": {
-		"scripts": ["cackey.js"],
-		"persistent": false
+	"app": {
+		"background": {
+			"scripts": [
+				"google-pcsc.js",
+				"cackey.js"
+			],
+			"persistent": false
+		}
 	},
 
 	"permissions": [
