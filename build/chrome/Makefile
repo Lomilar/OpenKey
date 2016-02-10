@@ -77,6 +77,7 @@ clean:
 	rm -f cackey-chrome.o cackey-chrome-init.o
 	rm -f cackey.pexe
 	rm -f cackey.crx cackey.nmf
+	rm -f test
 
 distclean: clean
 	rm -f lib/libcackey.a lib/libpcsc.a lib/libz.a
