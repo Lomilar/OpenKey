@@ -33,45 +33,17 @@ class CACKeyInstance : public pp::Instance {
 
 		virtual ~CACKeyInstance() {}
 
-		virtual void HandleMessage(const pp::Var& messagePlain) {
+		virtual void HandleMessageThread(pp::VarDictionary *message) {
 			int numCertificates, i;
 			struct cackey_certificate *certificates;
-			pp::VarDictionary *message;
 			pp::VarDictionary *reply;
 			pp::VarArray certificatesPPArray;
 			pp::VarArrayBuffer *certificateContents;
-			pp::Var command, target;
+			pp::Var command;
 
 			/*
-			 * The incoming message must be a dictionary
+			 * Extract the command
 			 */
-			if (!messagePlain.is_dictionary()) {
-				return;
-			}
-
-			/*
-			 * Process the appropriate command from the incoming message
-			 */
-			message = new pp::VarDictionary(messagePlain);
-
-			/*
-			 * Verify that this message is destined for us
-			 */
-			if (!message->HasKey("target")) {
-				return;
-			}
-
-			target = message->Get("target");
-			if (target.AsString() != "cackey") {
-				return;
-			}
-
-			/*
-			 * Determine what we are being asked to do
-			 */
-			if (!message->HasKey("command")) {
-				return;
-			}
 			command = message->Get("command");
 
 			/*
@@ -118,6 +90,49 @@ class CACKeyInstance : public pp::Instance {
 			 * Send the reply back to the requestor, hopefully they are waiting for this message
 			 */
 			PostMessage(*reply);
+
+			return;
+		}
+
+		virtual void HandleMessage(const pp::Var& messagePlain) {
+			pp::VarDictionary *message;
+			pp::Var target;
+
+			/*
+			 * The incoming message must be a dictionary
+			 */
+			if (!messagePlain.is_dictionary()) {
+				return;
+			}
+
+			/*
+			 * Process the appropriate command from the incoming message
+			 */
+			message = new pp::VarDictionary(messagePlain);
+
+			/*
+			 * Verify that this message is destined for us
+			 */
+			if (!message->HasKey("target")) {
+				return;
+			}
+
+			target = message->Get("target");
+			if (target.AsString() != "cackey") {
+				return;
+			}
+
+			/*
+			 * Determine what we are being asked to do
+			 */
+			if (!message->HasKey("command")) {
+				return;
+			}
+
+			/*
+			 * Process the request in another thread
+			 */
+			std::thread(&CACKeyInstance::HandleMessageThread, this, message).detach();
 
 			return;
 		}
