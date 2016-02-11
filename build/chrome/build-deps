@@ -316,7 +316,7 @@ void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
 
 	drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
 
-	pcsc_nacl = new PcscNacl(new DomRequestsManager("pcsc-nacl", drmDelegateImpl), "nahamlodapjneockbbogcleglpoillcn", "client");
+	pcsc_nacl = new PcscNacl(new DomRequestsManager("pcsc-nacl", drmDelegateImpl), "khpfeaanjngmcnplbdlpegiifgpfgdco", "CACKey");
 
 	fprintf(stderr, "New PcscNacl object = %p\n", pcsc_nacl);
 
@@ -326,9 +326,9 @@ void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
 		return;
 	}
 
-	fprintf(stderr, "Global instance set to %p\n", pcsc_nacl);
-
 	SetPcscNaclGlobalInstance(pcsc_nacl);
+
+	fprintf(stderr, "Global instance set to %p\n", pcsc_nacl);
 
 	fprintf(stderr, "Returning.\n");
 
