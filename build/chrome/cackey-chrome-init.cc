@@ -91,6 +91,8 @@ class CACKeyInstance : public pp::Instance {
 			 */
 			PostMessage(*reply);
 
+			delete message;
+
 			return;
 		}
 
@@ -102,6 +104,8 @@ class CACKeyInstance : public pp::Instance {
 			 * The incoming message must be a dictionary
 			 */
 			if (!messagePlain.is_dictionary()) {
+				pcscNaClHandleMessage(messagePlain);
+
 				return;
 			}
 
@@ -114,11 +118,19 @@ class CACKeyInstance : public pp::Instance {
 			 * Verify that this message is destined for us
 			 */
 			if (!message->HasKey("target")) {
+				delete message;
+
+				pcscNaClHandleMessage(messagePlain);
+
 				return;
 			}
 
 			target = message->Get("target");
 			if (target.AsString() != "cackey") {
+				delete message;
+
+				pcscNaClHandleMessage(messagePlain);
+
 				return;
 			}
 
@@ -126,6 +138,10 @@ class CACKeyInstance : public pp::Instance {
 			 * Determine what we are being asked to do
 			 */
 			if (!message->HasKey("command")) {
+				delete message;
+
+				pcscNaClHandleMessage(messagePlain);
+
 				return;
 			}
 

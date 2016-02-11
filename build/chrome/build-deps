@@ -239,6 +239,8 @@ function buildPCSC() {
 #include <ppapi/cpp/instance.h>
 
 void pcscNaClInit(pp::Instance *instance, pp::Core *core);
+bool pcscNaClHandleMessage(const pp::Var &message);
+
 #endif
 #endif
 _EOF_
@@ -302,11 +304,14 @@ _EOF_
 #include <ppapi/cpp/core.h>
 #include <ppapi/cpp/instance.h>
 
+#include <unistd.h>
 #include <stdio.h>
 
 #include "pcsc_nacl_global.h"
 #include "dom_requests_manager.h"
 #include "pcsc_nacl.h"
+
+static DomRequestsManager *pcscNaClDRM = NULL;
 
 void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
 	DomRequestsManager::PpDelegateImpl *drmDelegateImpl;
@@ -316,7 +321,9 @@ void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
 
 	drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
 
-	pcsc_nacl = new PcscNacl(new DomRequestsManager("pcsc-nacl", drmDelegateImpl), "khpfeaanjngmcnplbdlpegiifgpfgdco", "CACKey");
+	pcscNaClDRM = new DomRequestsManager("pcsc-nacl", drmDelegateImpl);
+
+	pcsc_nacl = new PcscNacl(pcscNaClDRM, "khpfeaanjngmcnplbdlpegiifgpfgdco", "CACKey");
 
 	fprintf(stderr, "New PcscNacl object = %p\n", pcsc_nacl);
 
@@ -333,6 +340,10 @@ void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
 	fprintf(stderr, "Returning.\n");
 
 	return;
+}
+
+bool pcscNaClHandleMessage(const pp::Var &message) {
+	return(pcscNaClDRM->HandleMessage(message));
 }
 _EOF_
 

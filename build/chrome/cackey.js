@@ -315,9 +315,13 @@ function cackeyInit() {
 
 	/* Verify that we can register callbacks */
 	if (!chrome.certificateProvider) {
-		console.error("This extension only works on ChromeOS!");
+		if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+			console.error("This extension only works on ChromeOS!");
 
-		return;
+			return;
+		} else {
+			console.log("This extension only works on ChromeOS, but you appear to be debugging it -- trying anyway.");
+		}
 	}
 
 	if (cackeyHandle != null) {
@@ -334,11 +338,11 @@ function cackeyInit() {
 	elementEmbed.addEventListener('load', cackeyInitLoaded, true);
 	elementEmbed.addEventListener('message', function(messageEvent) { console.log("Start message"); console.log(messageEvent.data); console.log("End message"); }, true);
 
-	new GoogleSmartCard.PcscNacl(elementEmbed);
-
-	document.body.appendChild(elementEmbed)
-
 	cackeyHandle = elementEmbed;
+
+	document.body.appendChild(cackeyHandle)
+
+	new GoogleSmartCard.PcscNacl(cackeyHandle);
 }
 
 function cackeyListCertificates(chromeCallback) {
