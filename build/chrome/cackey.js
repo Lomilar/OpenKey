@@ -313,6 +313,13 @@ function cackeyInitLoaded(messageEvent) {
 function cackeyInit() {
 	var elementEmbed;
 
+	/* Verify that we can register callbacks */
+	if (!chrome.certificateProvider) {
+		console.error("This extension only works on ChromeOS!");
+
+		return;
+	}
+
 	if (cackeyHandle != null) {
 		return;
 	}
