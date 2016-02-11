@@ -4345,7 +4345,6 @@ static struct cackey_identity *cackey_read_identities(struct cackey_slot *slot, 
 		return(identities);
 	}
 
-
 	*ids_found = 0;
 	return(NULL);
 }
@@ -4747,9 +4746,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 	pcsc_connect_ret = cackey_pcsc_connect();
 /* XXX: CAN HANG HERE ! */
 	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
-		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, assuming no slots");
-
-		slot_count = 0;
+		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, assuming no hardware slots");
 	} else {
 		pcsc_readers_len = 0;
 
@@ -4776,7 +4773,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 				/* Start with Slot ID 1, to avoid a bug in GDM on RHEL */
 				/* Bug 594911: https://bugzilla.redhat.com/show_bug.cgi?id=594911 */
 				currslot = 1;
-				slot_count = 0;
 				while (pcsc_readers < pcsc_readers_e) {
 					/* Find next available slot */
 					for (; currslot < (sizeof(cackey_slots) / sizeof(cackey_slots[0])); currslot++) {
@@ -4864,14 +4860,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 					pcsc_readers += curr_reader_len + 1;
 				}
-
-				for (currslot = 0; currslot < (sizeof(cackey_slots) / sizeof(cackey_slots[0])); currslot++) {
-					if (cackey_slots[currslot].active) {
-						CACKEY_DEBUG_PRINTF("Found active slot %lu, reader = %s", (unsigned long) currslot, cackey_slots[currslot].pcsc_reader);
-
-						slot_count++;
-					}
-				}
 			} else {
 				CACKEY_DEBUG_PRINTF("Second call to SCardListReaders failed, return %s/%li", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_listreaders_ret), (long) scard_listreaders_ret);
 			}
@@ -4879,6 +4867,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 			free(pcsc_readers_s);
 		} else {
 			CACKEY_DEBUG_PRINTF("First call to SCardListReaders failed, return %s/%li", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_listreaders_ret), (long) scard_listreaders_ret);
+		}
+	}
+
+	for (currslot = 0; currslot < (sizeof(cackey_slots) / sizeof(cackey_slots[0])); currslot++) {
+		if (cackey_slots[currslot].active) {
+			CACKEY_DEBUG_PRINTF("Found active slot %lu, reader = %s", (unsigned long) currslot, cackey_slots[currslot].pcsc_reader);
+
+			slot_count++;
 		}
 	}
 
