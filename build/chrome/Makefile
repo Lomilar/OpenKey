@@ -11,6 +11,13 @@ CFLAGS      = -Wall -g3 -ggdb3 -I${NACL_SDK_ROOT}/include -I../../pkcs11 -Iinclu
 CXXFLAGS    = $(CFLAGS) -std=gnu++11
 LDFLAGS     = -g3 -ggdb3
 
+CACKEY_DEBUG = 0
+ifeq (1,$(CACKEY_DEBUG))
+CACKEY_LIBNAME = libcackey_g
+else
+CACKEY_LIBNAME = libcackey
+endif
+
 PATH += :${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin
 export PATH
 
@@ -40,7 +47,7 @@ lib/libcackey.a: build-deps
 	rm -f lib/libcackey.a
 	rm -rf workdir-*
 	+./build-deps
-	cd lib && ln -s ../workdir-*.inst/lib/libcackey_g.a libcackey.a
+	cd lib && ln -s ../workdir-*.inst/lib/$(CACKEY_LIBNAME).a libcackey.a
 	touch lib/libcackey.a
 
 lib/libpcsc.a: lib/libcackey.a
@@ -57,7 +64,9 @@ lib/libz.a: lib/libcackey.a
 
 google-pcsc.js: lib/libcackey.a
 	rm -f google-pcsc.js google-pcsc.js.new
-	cat workdir-*.inst/js/{scope,logging,pcsc,pcsc-nacl}.js > google-pcsc.js.new
+	cat workdir-*.inst/js/scope.js > google-pcsc.js.new
+	echo 'GoogleSmartCard.IS_DEBUG_BUILD = $(CACKEY_DEBUG);' >> google-pcsc.js.new
+	cat workdir-*.inst/js/{logging,pcsc,pcsc-nacl}.js >> google-pcsc.js.new
 	mv google-pcsc.js.new google-pcsc.js
 
 include/PCSC/pcsc-nacl.h: lib/libcackey.a
