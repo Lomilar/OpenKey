@@ -305,7 +305,6 @@ _EOF_
 #include <ppapi/cpp/instance.h>
 
 #include <unistd.h>
-#include <stdio.h>
 
 #include "pcsc_nacl_global.h"
 #include "dom_requests_manager.h"
@@ -317,27 +316,17 @@ void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
 	DomRequestsManager::PpDelegateImpl *drmDelegateImpl;
 	PcscNacl *pcsc_nacl;
 
-	fprintf(stderr, "Called pcscNaClInit()\n");
-
 	drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
 
 	pcscNaClDRM = new DomRequestsManager("pcsc-nacl", drmDelegateImpl);
 
 	pcsc_nacl = new PcscNacl(pcscNaClDRM, "khpfeaanjngmcnplbdlpegiifgpfgdco", "CACKey");
 
-	fprintf(stderr, "New PcscNacl object = %p\n", pcsc_nacl);
-
 	if (!pcsc_nacl->Initialize()) {
-		fprintf(stderr, "PcscNacl->Initialize() failed !");
-
 		return;
 	}
 
 	SetPcscNaclGlobalInstance(pcsc_nacl);
-
-	fprintf(stderr, "Global instance set to %p\n", pcsc_nacl);
-
-	fprintf(stderr, "Returning.\n");
 
 	return;
 }
