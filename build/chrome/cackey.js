@@ -433,8 +433,5 @@ function cackeySignMessage(signRequest, chromeCallback) {
 	return;
 }
 
-/* Enable debugging */
-GoogleSmartCard.logger.setLevel(GoogleSmartCard.Logger.prototype.DEBUG);
-
 /* Initialize CACKey */
 cackeyInit();
