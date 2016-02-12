@@ -12,19 +12,13 @@
 #include <ppapi/cpp/var_array.h>
 #include <ppapi/cpp/var_array_buffer.h>
 
-#include <stdio.h>
-
 #include "pcsc-nacl.h"
 #include "cackey-chrome.h"
 
 class CACKeyInstance : public pp::Instance {
 	private:
 		void pcscNaClInitWrapper(pp::Core *core) {
-			fprintf(stderr, "Calling pcscNaClInit(%p, %p)\n", this, core);
-
 			pcscNaClInit(this, core);
-
-			fprintf(stderr, "pcscNaClInit terminated\n");
 		}
 	public:
 		explicit CACKeyInstance(PP_Instance instance, pp::Core *core) : pp::Instance(instance) {
@@ -39,7 +33,7 @@ class CACKeyInstance : public pp::Instance {
 			pp::VarDictionary *reply;
 			pp::VarArray certificatesPPArray;
 			pp::VarArrayBuffer *certificateContents;
-			pp::Var command;
+			pp::Var command, incomingCertificateContents;
 
 			/*
 			 * Extract the command
@@ -49,10 +43,10 @@ class CACKeyInstance : public pp::Instance {
 			/*
 			 * Do the thing we are being asked to do
 			 */
+			reply = new pp::VarDictionary();
+
 			if (command.AsString() == "listcertificates") {
 				numCertificates = cackey_chrome_listCertificates(&certificates);
-
-				reply = new pp::VarDictionary();
 
 				certificatesPPArray.SetLength(numCertificates);
 
@@ -64,17 +58,25 @@ class CACKeyInstance : public pp::Instance {
 					certificateContents->Unmap();
 
 					certificatesPPArray.Set(i, *certificateContents);
+
+					delete certificateContents;
 				}
+
+				cackey_chrome_freeCertificates(certificates, numCertificates);
 
 				reply->Set("status", "success");
 				reply->Set("certificates", certificatesPPArray);
 			} else if (command.AsString() == "sign") {
-				reply = new pp::VarDictionary();
+				if (!message->HasKey("certificate")) {
+					reply->Set("status", "error");
+					reply->Set("error", "Certificate not supplied");
+				} else {
+					incomingCertificateContents = message->Get("certificate");
 
-				reply->Set("status", "success");
+					reply->Set("status", "error");
+					reply->Set("error", "This function is not yet implemented");
+				}
 			} else {
-				reply = new pp::VarDictionary();
-
 				reply->Set("status", "error");
 				reply->Set("error", "Invalid command");
 			}
@@ -90,6 +92,8 @@ class CACKeyInstance : public pp::Instance {
 			 * Send the reply back to the requestor, hopefully they are waiting for this message
 			 */
 			PostMessage(*reply);
+
+			delete reply;
 
 			delete message;
 
