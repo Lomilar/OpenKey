@@ -89,6 +89,12 @@ class CACKeyInstance : public pp::Instance {
 			}
 
 			/*
+			 * Indicate who our message is for
+			 */
+			reply->Set("target", "cackey");
+			reply->Set("command", command);
+
+			/*
 			 * Send the reply back to the requestor, hopefully they are waiting for this message
 			 */
 			PostMessage(*reply);
