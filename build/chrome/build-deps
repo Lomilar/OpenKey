@@ -374,7 +374,7 @@ function buildCACKey() {
 
 		make distclean
 
-		./configure --host=nacl --with-pcsc-headers="${instdir}/include/PCSC" --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay || exit 1
+		./configure --host=nacl --with-pcsc-headers="${instdir}/include/PCSC" --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay --disable-dod-certs || exit 1
 		make || exit 1
 	) || return 1
 
