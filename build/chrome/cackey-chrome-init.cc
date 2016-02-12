@@ -1,6 +1,8 @@
 /*
- * Google's PCSC library requires us to write our module in C++ (thanks, Google)
- * This library wraps the actual library, written in C.
+ * Google's PCSC library requires us to write our module in C++ to initialize
+ * it.  This component handles the initialization of our module and handles
+ * incoming messages, passing them either to our library (cackey-chrome) or
+ * to the PCSC-NaCl library from Google as appropriate.
  */
 
 #include <thread>
@@ -130,6 +132,7 @@ class CACKeyInstance : public pp::Instance {
 			if (!message->HasKey("target")) {
 				delete message;
 
+				/* We don't handle this message, see if PCSC-NaCl does */
 				pcscNaClHandleMessage(messagePlain);
 
 				return;
@@ -139,6 +142,7 @@ class CACKeyInstance : public pp::Instance {
 			if (target.AsString() != "cackey") {
 				delete message;
 
+				/* We don't handle this message, see if PCSC-NaCl does */
 				pcscNaClHandleMessage(messagePlain);
 
 				return;
@@ -150,6 +154,7 @@ class CACKeyInstance : public pp::Instance {
 			if (!message->HasKey("command")) {
 				delete message;
 
+				/* We don't handle this message, see if PCSC-NaCl does */
 				pcscNaClHandleMessage(messagePlain);
 
 				return;
