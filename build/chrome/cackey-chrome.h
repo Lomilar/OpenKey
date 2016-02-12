@@ -12,7 +12,19 @@ struct cackey_certificate {
 	unsigned char *certificate;
 };
 
+typedef enum {
+	CACKEY_CHROME_OK,
+	CACKEY_CHROME_ERROR,
+	CACKEY_CHROME_NEEDLOGIN,
+	CACKEY_CHROME_NEEDPROTECTEDLOGIN
+} cackey_chrome_returnType;
+
 int cackey_chrome_listCertificates(struct cackey_certificate **certificates);
+void cackey_chrome_freeCertificates(struct cackey_certificate *certificates, int certificatesCount);
+
+cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, unsigned char *destination, unsigned long *destinationLength, char **pinPrompt, char *pin);
+
+void cackey_chrome_terminate(void);
 
 #  ifdef __cplusplus
 }
