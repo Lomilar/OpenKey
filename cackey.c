@@ -5727,7 +5727,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession, CK_BY
 	return(CKR_FUNCTION_NOT_SUPPORTED);
 }
 
-CK_DEFINE_FUNCTION(CK_RV, _C_LoginMutexArg)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen, int lock_mutex) {
+CK_DEFINE_FUNCTION(CK_RV, C_LoginMutexArg)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen, int lock_mutex) {
 	CK_SLOT_ID slotID;
 	cackey_ret get_pin_ret;
 	char pinbuf[64];
@@ -5869,7 +5869,7 @@ CK_DEFINE_FUNCTION(CK_RV, _C_LoginMutexArg)(CK_SESSION_HANDLE hSession, CK_USER_
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen) {
-	return(_C_LoginMutexArg(hSession, userType, pPin, ulPinLen, 1));
+	return(C_LoginMutexArg(hSession, userType, pPin, ulPinLen, 1));
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_Logout)(CK_SESSION_HANDLE hSession) {
@@ -6853,7 +6853,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_P
 			buflen = cackey_signdecrypt(&cackey_slots[slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf), 0, 1);
 
 			if (buflen == CACKEY_PCSC_E_NEEDLOGIN && cackey_pin_command != NULL) {
-				if (_C_LoginMutexArg(hSession, CKU_USER, NULL, 0, 0) == CKR_OK) {
+				if (C_LoginMutexArg(hSession, CKU_USER, NULL, 0, 0) == CKR_OK) {
 					buflen = cackey_signdecrypt(&cackey_slots[slotID], cackey_sessions[hSession].decrypt_identity, pEncryptedPart, ulEncryptedPartLen, buf, sizeof(buf), 0, 1);
 				}
 			}
@@ -7402,7 +7402,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR p
 			sigbuflen = cackey_signdecrypt(&cackey_slots[slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_bufused, sigbuf, sizeof(sigbuf), 1, 0);
 
 			if (sigbuflen == CACKEY_PCSC_E_NEEDLOGIN && cackey_pin_command != NULL) {
-				if (_C_LoginMutexArg(hSession, CKU_USER, NULL, 0, 0) == CKR_OK) {
+				if (C_LoginMutexArg(hSession, CKU_USER, NULL, 0, 0) == CKR_OK) {
 					sigbuflen = cackey_signdecrypt(&cackey_slots[slotID], cackey_sessions[hSession].sign_identity, cackey_sessions[hSession].sign_buf, cackey_sessions[hSession].sign_bufused, sigbuf, sizeof(sigbuf), 1, 0);
 				}
 			}
