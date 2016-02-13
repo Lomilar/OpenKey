@@ -132,19 +132,12 @@ function cackeyMessageIncoming(messageEvent) {
 					if (pinWindowDidWork != 1) {
 						console.log("[cackey] The PIN dialog was closed without resubmitting the request, treating it as a failure");
 
-						cackeyMessageIncoming(
-							{
-								"data": {
-									"target": "cackey",
-									"command": messageEvent.data.command,
-									"id": messageEvent.data.id,
-									"status": "error",
-									"error": "PIN window closed without a PIN being provided"
-								}
-							}
-						)
+						messageEvent.data.status = "error";
+						messageEvent.data.error = "PIN window closed without a PIN being provided";
 
+						cackeyMessageIncoming(messageEvent);
 					}
+
 					return;
 				})
 
