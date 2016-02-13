@@ -22,7 +22,8 @@ var cackeyOutstandingCallbackCounter = -1;
 /*
  * Communication with the PIN entry window
  */
-var pinWindowDidWork = 0;
+var pinWindowPINValue = "";
+var pinWindowPreviousHandle = null;
 
 /*
  * Handle a response from the NaCl side regarding certificates available
@@ -101,7 +102,16 @@ function cackeyMessageIncoming(messageEvent) {
 
 			break;
 		case "retry":
-			pinWindowDidWork = 0;
+			pinWindowPINValue = "";
+
+			if (pinWindowPreviousHandle) {
+				/*
+				 * An existing PIN entry is in progress
+				 * Wait for it to complete and tie this request to that one.
+				 */
+
+				/* XXX:TODO */
+			}
 
 			chrome.app.window.create("pin.html", {
 				"id": "cackeyPINEntry",
@@ -122,6 +132,8 @@ function cackeyMessageIncoming(messageEvent) {
 					return;
 				}
 
+				pinWindowPreviousHandle = pinWindow;
+
 				pinWindow.drawAttention();
 				pinWindow.focus();
 
@@ -130,7 +142,9 @@ function cackeyMessageIncoming(messageEvent) {
 				 * having sent anything
 				 */
 				pinWindow.onClosed.addListener(function() {
-					if (pinWindowDidWork != 1) {
+					pinWindowPreviousHandle = null;
+
+					if (pinWindowPINValue == "") {
 						console.log("[cackey] The PIN dialog was closed without resubmitting the request, treating it as a failure");
 
 						messageEvent.data.status = "error";
@@ -176,6 +190,8 @@ function cackeyMessageIncoming(messageEvent) {
 	}
 
 	delete cackeyOutstandingCallbacks[messageEvent.data.id];
+
+	pinWindowPINValue = "";
 
 	return;
 }

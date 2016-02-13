@@ -1,6 +1,5 @@
 function clickOk() {
-
-	parentWindow.pinWindowDidWork = 1;
+	parentWindow.pinWindowPINValue = document.getElementById('pin').value;
 
 	window.close();
 
