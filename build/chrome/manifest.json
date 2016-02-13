@@ -14,6 +14,7 @@
 	},
 
 	"permissions": [
-		"certificateProvider"
+		"certificateProvider",
+		"alwaysOnTopWindows"
 	]
 }

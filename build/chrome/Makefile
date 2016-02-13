@@ -28,7 +28,7 @@ export NACL_SDK_ROOT
 
 all: cackey.crx
 
-cackey.crx: cackey.pexe cackey.nmf manifest.json cackey.js google-pcsc.js
+cackey.crx: cackey.pexe cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin-icon.png
 	rm -f cackey.crx
 	zip cackey.crx.new $^
 	mv cackey.crx.new cackey.crx
