@@ -20,6 +20,11 @@ var cackeyOutstandingCallbacks = []
 var cackeyOutstandingCallbackCounter = -1;
 
 /*
+ * Communication with the PIN entry window
+ */
+var pinWindowDidWork = 0;
+
+/*
  * Handle a response from the NaCl side regarding certificates available
  */
 function cackeyMessageIncomingListCertificates(message, chromeCallback) {
@@ -88,21 +93,88 @@ function cackeyMessageIncoming(messageEvent) {
 		return;
 	}
 
-	if (messageEvent.data.status != "success") {
-		console.error("[cackey] Failed to execute command '" + messageEvent.data.command + "': " + messageEvent.data.error);
+	switch (messageEvent.data.status) {
+		case "error":
+			console.error("[cackey] Failed to execute command '" + messageEvent.data.command + "': " + messageEvent.data.error);
 
-		chromeCallback();
-	} else {
-		switch (messageEvent.data.command) {
-			case "listcertificates":
-				nextFunction = cackeyMessageIncomingListCertificates;
+			chromeCallback();
 
-				break;
-			case "sign":
-				nextFunction = cackeyMessageIncomingSignMessage;
+			break;
+		case "retry":
+			pinWindowDidWork = 0;
 
-				break;
-		}
+			chrome.app.window.create("pin.html", {
+				"id": "cackeyPINEntry",
+				"resizable": false,
+				"alwaysOnTop": true,
+				"focused": true,
+				"visibleOnAllWorkspaces": true,
+				"innerBounds": {
+					"width": 350,
+					"minWidth": 350,
+					"height": 135,
+					"minHeight": 135
+				}
+			}, function(pinWindow) {
+				if (!pinWindow) {
+					console.log("[cackey] No window was provided for PIN entry, this will not go well.");
+
+					return;
+				}
+				pinWindow.drawAttention();
+				pinWindow.focus();
+
+				/*
+				 * Register a handler to handle the window being closed without
+				 * having sent anything
+				 */
+				pinWindow.onClosed.addListener(function() {
+					if (pinWindowDidWork != 1) {
+						console.log("[cackey] The PIN dialog was closed without resubmitting the request, treating it as a failure");
+
+						cackeyMessageIncoming(
+							{
+								"data": {
+									"target": "cackey",
+									"command": messageEvent.data.command,
+									"id": messageEvent.data.id,
+									"status": "error",
+									"error": "PIN window closed without a PIN being provided"
+								}
+							}
+						)
+
+					}
+					return;
+				})
+
+				/*
+				 * Pass this message off to the other window so that it may resubmit the request.
+				 */
+				pinWindow.contentWindow.parentWindow = window;
+				pinWindow.contentWindow.messageEvent = messageEvent;
+
+				return;
+			});
+
+			/*
+			 * We return here instead of break to avoid deleting the callback
+			 * entry.
+			 */
+			return;
+		case "success":
+			switch (messageEvent.data.command) {
+				case "listcertificates":
+					nextFunction = cackeyMessageIncomingListCertificates;
+
+					break;
+				case "sign":
+					nextFunction = cackeyMessageIncomingSignMessage;
+
+					break;
+			}
+
+			break;
 	}
 
 	if (nextFunction != null) {
