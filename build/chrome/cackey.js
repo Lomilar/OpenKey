@@ -121,6 +121,7 @@ function cackeyMessageIncoming(messageEvent) {
 
 					return;
 				}
+
 				pinWindow.drawAttention();
 				pinWindow.focus();
 
