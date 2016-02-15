@@ -4737,14 +4737,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 
 				cackey_slots[currslot].active = 0;
 			}
-		} else {
-			
 		}
 	}
 
 	/* Determine list of readers */
 	pcsc_connect_ret = cackey_pcsc_connect();
-/* XXX: CAN HANG HERE ! */
 	if (pcsc_connect_ret != CACKEY_PCSC_S_OK) {
 		CACKEY_DEBUG_PRINTF("Connection to PC/SC failed, assuming no hardware slots");
 	} else {
