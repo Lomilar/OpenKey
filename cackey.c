@@ -2600,9 +2600,9 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 				continue;
 			}
 
-#ifdef HAVE_LIBZ
 			if (curr_id->certificate_len > 4) {
 				if (memcmp(curr_id->certificate, "\x1f\x8b\x08\x00", 4) == 0) {
+#ifdef HAVE_LIBZ
 					tmpbuflen = curr_id->certificate_len * 2;
 					tmpbuf = malloc(tmpbuflen);
 
@@ -2655,9 +2655,11 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 
 						free(tmpbuf);
 					}
+#else
+					CACKEY_DEBUG_PRINTF("Error.  We got a compressed certificate but we do not have zlib.  Hoping for the best.");
+#endif
 				}
 			}
-#endif
 		}
 	} else {
 		/* Read all the applets from the CCC's TLV */
