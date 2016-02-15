@@ -50,7 +50,7 @@ libcackey_g.a: cackey_g.o
 	-$(RANLIB) libcackey_g.a
 
 test: test.c libcackey_g.@SHOBJEXT@
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey_g.@SHOBJEXT@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o test test.c -Wl,-R,. libcackey_g.@SHOBJEXT@ $(LIBS)
 
 test-afl.data: test
 	tmpLogFile='log.$(shell openssl rand -hex 16)'; \
