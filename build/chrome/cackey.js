@@ -16,7 +16,7 @@ var cackeyHandle = null;
 /*
  * Handle and ID for outstanding callbacks
  */
-var cackeyOutstandingCallbacks = []
+var cackeyOutstandingCallbacks = {}
 var cackeyOutstandingCallbackCounter = -1;
 
 /*
