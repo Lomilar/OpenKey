@@ -136,10 +136,15 @@ class CACKeyInstance : public pp::Instance {
 
 							reply->Set("status", "retry");
 							reply->Set("originalrequest", messageAsVar);
+							reply->Set("pinprompt", pinPrompt);
 
 							delete messageAsVar;
 
 							break;
+					}
+
+					if (pinPrompt != NULL) {
+						free(pinPrompt);
 					}
 				}
 			} else {
