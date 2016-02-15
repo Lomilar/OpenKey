@@ -179,6 +179,8 @@ function cackeyMessageIncoming(messageEvent) {
 
 							cackeyMessageIncoming(tmpMessageEvent);
 						} else {
+							tmpMessageEvent.data.originalrequest.pin = pinWindowPINValue;
+
 							cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
 						}
 
