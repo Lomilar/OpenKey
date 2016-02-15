@@ -306,7 +306,8 @@ function cackeyInitLoaded(messageEvent) {
 	cackeyHandle.postMessage(
 		{
 			"target": "cackey",
-			"command": "init"
+			"command": "init",
+			"smartcardManagerAppId": "khpfeaanjngmcnplbdlpegiifgpfgdco"
 		}
 	);
 

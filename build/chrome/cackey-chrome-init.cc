@@ -14,6 +14,9 @@
 #include <ppapi/cpp/var_array.h>
 #include <ppapi/cpp/var_array_buffer.h>
 
+#include <string.h>
+#include <stdlib.h>
+
 #include "pcsc-nacl.h"
 #include "cackey-chrome.h"
 
@@ -54,10 +57,12 @@ class CACKeyInstance : public pp::Instance {
 
 			if (command.AsString() == "init") {
 				if (message->HasKey("smartcardManagerAppId")) {
-					smartcardManagerAppId = message->Get("smartcardManagerAppId").AsString().c_str();
+					smartcardManagerAppId = strdup(message->Get("smartcardManagerAppId").AsString().c_str());
 				}
 
 				pcscNaClInit(this, corePointer, smartcardManagerAppId, "CACKey");
+
+				free((void *) smartcardManagerAppId);
 
 				reply->Set("status", "success");
 			} else if (command.AsString() == "listcertificates") {
