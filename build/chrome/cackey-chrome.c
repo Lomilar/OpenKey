@@ -329,7 +329,7 @@ void cackey_chrome_freeCertificates(struct cackey_certificate *certificates, int
 	return;
 }
 
-cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, unsigned char *destination, unsigned long *destinationLength, char **pinPrompt, char *pin) {
+cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, void *destination, unsigned long *destinationLength, char **pinPrompt, const char *pin) {
 	CK_RV chk_rv;
 	CK_ULONG numSlots, currSlot;
 	CK_SLOT_ID_PTR slots;

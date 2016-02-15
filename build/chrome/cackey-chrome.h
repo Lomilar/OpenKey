@@ -9,7 +9,7 @@ extern "C" {
 
 struct cackey_certificate {
 	size_t certificate_len;
-	unsigned char *certificate;
+	void *certificate;
 };
 
 typedef enum {
@@ -22,7 +22,7 @@ typedef enum {
 int cackey_chrome_listCertificates(struct cackey_certificate **certificates);
 void cackey_chrome_freeCertificates(struct cackey_certificate *certificates, int certificatesCount);
 
-cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, unsigned char *destination, unsigned long *destinationLength, char **pinPrompt, char *pin);
+cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, void *destination, unsigned long *destinationLength, char **pinPrompt, const char *pin);
 
 void cackey_chrome_terminate(void);
 

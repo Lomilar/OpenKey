@@ -26,6 +26,11 @@ var pinWindowPINValue = "";
 var pinWindowPreviousHandle = null;
 
 /*
+ * Messages that may need to be retried after getting a PIN
+ */
+var cackeyMessagesToRetry = [];
+
+/*
  * Handle a response from the NaCl side regarding certificates available
  */
 function cackeyMessageIncomingListCertificates(message, chromeCallback) {
@@ -102,16 +107,26 @@ function cackeyMessageIncoming(messageEvent) {
 
 			break;
 		case "retry":
-			pinWindowPINValue = "";
+			/*
+			 * Add the new request to the queue of events to process when the PIN
+			 * prompt is terminated.
+			 */
+			cackeyMessagesToRetry.push(messageEvent);
 
 			if (pinWindowPreviousHandle) {
 				/*
 				 * An existing PIN entry is in progress
-				 * Wait for it to complete and tie this request to that one.
+				 * Just add the request to the queue (above) and wait
 				 */
 
-				/* XXX:TODO */
+				return;
 			}
+
+			/*
+			 * Set the handle to an invalid (but non-null) value until the window
+			 * is created in case we are invoked again soon.
+			 */
+			pinWindowPreviousHandle = "invalid";
 
 			chrome.app.window.create("pin.html", {
 				"id": "cackeyPINEntry",
@@ -126,6 +141,11 @@ function cackeyMessageIncoming(messageEvent) {
 					"minHeight": 135
 				}
 			}, function(pinWindow) {
+				/*
+				 * Set the PIN value to blank
+				 */
+				pinWindowPINValue = "";
+
 				if (!pinWindow) {
 					console.log("[cackey] No window was provided for PIN entry, this will not go well.");
 
@@ -142,15 +162,27 @@ function cackeyMessageIncoming(messageEvent) {
 				 * having sent anything
 				 */
 				pinWindow.onClosed.addListener(function() {
+					var messageIdx;
+
 					pinWindowPreviousHandle = null;
 
-					if (pinWindowPINValue == "") {
-						console.log("[cackey] The PIN dialog was closed without resubmitting the request, treating it as a failure");
+					for (messageIdx = 0; messageIdx < cackeyMessagesToRetry.length; messageIdx++) {
+						var tmpMessageEvent;
 
-						messageEvent.data.status = "error";
-						messageEvent.data.error = "PIN window closed without a PIN being provided";
+						tmpMessageEvent = cackeyMessagesToRetry[messageIdx];
 
-						cackeyMessageIncoming(messageEvent);
+						if (pinWindowPINValue == "") {
+							console.log("[cackey] The PIN dialog was closed without gathering a PIN, treating it as a failure.");
+
+							tmpMessageEvent.data.status = "error";
+							tmpMessageEvent.data.error = "PIN window closed without a PIN being provided";
+
+							cackeyMessageIncoming(tmpMessageEvent);
+						} else {
+							cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
+						}
+
+						delete cackeyMessagesToRetry[messageIdx];
 					}
 
 					return;

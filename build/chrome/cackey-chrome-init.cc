@@ -30,12 +30,18 @@ class CACKeyInstance : public pp::Instance {
 		virtual ~CACKeyInstance() {}
 
 		virtual void HandleMessageThread(pp::VarDictionary *message) {
-			int numCertificates, i;
-			struct cackey_certificate *certificates;
+			cackey_chrome_returnType signRet;
+			char *pinPrompt;
+			const char *pin;
+			unsigned char buffer[8192];
+			struct cackey_certificate *certificates, incomingCertificateCACKey;
 			pp::VarDictionary *reply;
 			pp::VarArray certificatesPPArray;
-			pp::VarArrayBuffer *certificateContents;
-			pp::Var command, incomingCertificateContents;
+			pp::VarArrayBuffer *certificateContents, *incomingCertificateContents, *incomingData, *outgoingData;
+			pp::Var command;
+			const pp::Var *messageAsVar = NULL, *outgoingDataAsVar = NULL;
+			int numCertificates, i;
+			unsigned long outgoingDataLength;
 
 			/*
 			 * Extract the command
@@ -72,11 +78,69 @@ class CACKeyInstance : public pp::Instance {
 				if (!message->HasKey("certificate")) {
 					reply->Set("status", "error");
 					reply->Set("error", "Certificate not supplied");
-				} else {
-					incomingCertificateContents = message->Get("certificate");
-
+				} else if (!message->HasKey("data")) {
 					reply->Set("status", "error");
-					reply->Set("error", "This function is not yet implemented");
+					reply->Set("error", "Data not supplied");
+				} else {
+					incomingCertificateContents = new pp::VarArrayBuffer(message->Get("certificate"));
+					incomingData = new pp::VarArrayBuffer(message->Get("data"));
+
+					if (message->HasKey("pin")) {
+						pin = message->Get("pin").AsString().c_str();
+					} else {
+						pin = NULL;
+					}
+
+					incomingCertificateCACKey.certificate = incomingCertificateContents->Map();					
+					incomingCertificateCACKey.certificate_len = incomingCertificateContents->ByteLength();					
+
+					outgoingDataLength = sizeof(buffer);
+
+					signRet = cackey_chrome_signMessage(&incomingCertificateCACKey,
+						incomingData->Map(), incomingData->ByteLength(),
+						buffer, &outgoingDataLength,
+						&pinPrompt, pin
+					);
+
+					incomingCertificateContents->Unmap();
+					incomingData->Unmap();
+
+					delete incomingCertificateContents;
+					delete incomingData;
+
+					switch (signRet) {
+						case CACKEY_CHROME_OK:
+							outgoingData = new pp::VarArrayBuffer(outgoingDataLength);
+
+							memcpy(outgoingData->Map(), buffer, outgoingDataLength);
+
+							outgoingData->Unmap();
+
+							outgoingDataAsVar = new pp::Var(outgoingData->pp_var());
+
+							delete outgoingData;
+
+							reply->Set("status", "success");
+							reply->Set("signedData", outgoingDataAsVar);
+
+							delete outgoingDataAsVar;
+
+							break;
+						case CACKEY_CHROME_ERROR:
+							reply->Set("status", "error");
+							reply->Set("error", "Unable to sign data");
+							break;
+						case CACKEY_CHROME_NEEDLOGIN:
+						case CACKEY_CHROME_NEEDPROTECTEDLOGIN:
+							messageAsVar = new pp::Var(message->pp_var());
+
+							reply->Set("status", "retry");
+							reply->Set("originalrequest", messageAsVar);
+
+							delete messageAsVar;
+
+							break;
+					}
 				}
 			} else {
 				reply->Set("status", "error");
