@@ -33,6 +33,8 @@ int main(int argc, char **argv) {
 
 			free(pinPrompt);
 
+			pinPrompt = NULL;
+
 			fgets(pin, sizeof(pin), stdin);
 			while (strlen(pin) >= 1 && pin[strlen(pin) - 1] == '\n') {
 				pin[strlen(pin) - 1] = '\0';
@@ -40,6 +42,10 @@ int main(int argc, char **argv) {
 
 			signLength = sizeof(signBuffer);
 			rvSign = cackey_chrome_signMessage(&certificates[idxCertificate], "Test", 4, signBuffer, &signLength, &pinPrompt, pin);
+		}
+
+		if (pinPrompt != NULL) {
+			free(pinPrompt);
 		}
 
 		printf("Signed message \"Test\": %lu bytes (return value = %i)\n", signLength, rvSign);
