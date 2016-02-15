@@ -32,7 +32,7 @@ class CACKeyInstance : public pp::Instance {
 
 		virtual void HandleMessageThread(pp::VarDictionary *message) {
 			cackey_chrome_returnType signRet;
-			char *pinPrompt;
+			char *pinPrompt = NULL;
 			const char *pin;
 			const char *smartcardManagerAppId = NULL;
 			unsigned char buffer[8192];
