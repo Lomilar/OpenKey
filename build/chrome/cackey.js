@@ -31,6 +31,33 @@ var pinWindowPreviousHandle = null;
 var cackeyMessagesToRetry = [];
 
 /*
+ * Stored PIN for a given certificate
+ */
+var cackeyCertificateToPINMap = {};
+
+/*
+ * Compute a text-based handle for a certificate to be hashed by
+ */
+function cackeyCertificateToPINID(certificate) {
+	var id;
+	var certificateArray;
+
+	id = "";
+
+	certificateArray = new Uint8Array(certificate);
+
+	certificateArray.map(
+		function(byte) {
+			id += ("0" + byte.toString(16)).slice(-2);
+		}
+	);
+
+	delete certificateArray;
+
+	return(id);
+}
+
+/*
  * Handle a response from the NaCl side regarding certificates available
  */
 function cackeyMessageIncomingListCertificates(message, chromeCallback) {
@@ -90,6 +117,16 @@ function cackeyMessageIncoming(messageEvent) {
 	console.log("START MESSAGE");
 	console.log(messageEvent.data);
 	console.log("END MESSAGE");
+
+	/*
+	 * If we failed for some reason and we have a certificate in the original
+	 * request then forget any PIN associated with that certificate
+	 */
+	if (messageEvent.data.status != "success") {
+		if (messageEvent.data.originalrequest.certificate) {
+			delete cackeyCertificateToPINMap[cackeyCertificateToPINID(messageEvent.data.originalrequest.certificate)];
+		}
+	}
 
 	if (messageEvent.data.id == null) {
 		return;
@@ -185,11 +222,18 @@ function cackeyMessageIncoming(messageEvent) {
 						} else {
 							tmpMessageEvent.data.originalrequest.pin = pinWindowPINValue;
 
+							cackeyCertificateToPINMap[cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate)] = pinWindowPINValue;
+
 							cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
 						}
 
 						delete cackeyMessagesToRetry[messageIdx];
 					}
+
+					/*
+					 * We are done fetching the user PIN, clear the value
+					 */
+					pinWindowPINValue = "";
 
 					return;
 				})
@@ -263,20 +307,28 @@ function cackeyListCertificates(chromeCallback) {
  */
 function cackeySignMessage(signRequest, chromeCallback) {
 	var callbackId;
+	var command;
+	var certificateId;
 
 	console.log("[cackey] Asked to sign a message -- throwing that request over to the NaCl side... ");
 
 	callbackId = cackeyOutstandingCallbackCounter + 1;
 
-	cackeyHandle.postMessage(
-		{
-			'target': "cackey",
-			'command': "sign",
-			'id': callbackId,
-			'certificate': signRequest.certificate,
-			'data': signRequest.digest /* XXX:TODO: This needs to be prefixed based on the signRequest.hash */
-		}
-	);
+	command = {
+		'target': "cackey",
+		'command': "sign",
+		'id': callbackId,
+		'certificate': signRequest.certificate,
+		'data': signRequest.digest /* XXX:TODO: This needs to be prefixed based on the signRequest.hash */
+	};
+
+	certificateId = cackeyCertificateToPINID(command.certificate);
+
+	if (cackeyCertificateToPINMap[certificateId]) {
+		command.pin = cackeyCertificateToPINMap[certificateId];
+	}
+
+	cackeyHandle.postMessage(command);
 
 	cackeyOutstandingCallbackCounter = callbackId;
 	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
