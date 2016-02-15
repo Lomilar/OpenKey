@@ -229,8 +229,6 @@ function cackeyMessageIncoming(messageEvent) {
 
 	delete cackeyOutstandingCallbacks[messageEvent.data.id];
 
-	pinWindowPINValue = "";
-
 	return;
 }
 
