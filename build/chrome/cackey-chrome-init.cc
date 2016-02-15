@@ -19,12 +19,10 @@
 
 class CACKeyInstance : public pp::Instance {
 	private:
-		void pcscNaClInitWrapper(pp::Core *core) {
-			pcscNaClInit(this, core);
-		}
+		pp::Core *corePointer;
 	public:
 		explicit CACKeyInstance(PP_Instance instance, pp::Core *core) : pp::Instance(instance) {
-			std::thread(&CACKeyInstance::pcscNaClInitWrapper, this, core).detach();
+			corePointer = core;
 		}
 
 		virtual ~CACKeyInstance() {}
@@ -33,6 +31,7 @@ class CACKeyInstance : public pp::Instance {
 			cackey_chrome_returnType signRet;
 			char *pinPrompt;
 			const char *pin;
+			const char *smartcardManagerAppId = NULL;
 			unsigned char buffer[8192];
 			struct cackey_certificate *certificates, incomingCertificateCACKey;
 			pp::VarDictionary *reply;
@@ -53,7 +52,15 @@ class CACKeyInstance : public pp::Instance {
 			 */
 			reply = new pp::VarDictionary();
 
-			if (command.AsString() == "listcertificates") {
+			if (command.AsString() == "init") {
+				if (message->HasKey("smartcardManagerAppId")) {
+					smartcardManagerAppId = message->Get("smartcardManagerAppId").AsString().c_str();
+				}
+
+				pcscNaClInit(this, corePointer, smartcardManagerAppId, "CACKey");
+
+				reply->Set("status", "success");
+			} else if (command.AsString() == "listcertificates") {
 				numCertificates = cackey_chrome_listCertificates(&certificates);
 
 				certificatesPPArray.SetLength(numCertificates);

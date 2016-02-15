@@ -238,7 +238,7 @@ function buildPCSC() {
 #include <ppapi/cpp/core.h>
 #include <ppapi/cpp/instance.h>
 
-void pcscNaClInit(pp::Instance *instance, pp::Core *core);
+void pcscNaClInit(pp::Instance *instance, pp::Core *core, const char *smartcardManagerAppId, const char *clientId);
 bool pcscNaClHandleMessage(const pp::Var &message);
 
 #endif
@@ -312,15 +312,23 @@ _EOF_
 
 static DomRequestsManager *pcscNaClDRM = NULL;
 
-void pcscNaClInit(pp::Instance *instance, pp::Core *core) {
+void pcscNaClInit(pp::Instance *instance, pp::Core *core, const char *smartcardManagerAppId, const char *clientId) {
 	DomRequestsManager::PpDelegateImpl *drmDelegateImpl;
 	PcscNacl *pcsc_nacl;
+
+	if (smartcardManagerAppId == NULL) {
+		smartcardManagerAppId = "khpfeaanjngmcnplbdlpegiifgpfgdco";
+	}
+
+	if (clientId == NULL) {
+		clientId = "UNKNOWN";
+	}
 
 	drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
 
 	pcscNaClDRM = new DomRequestsManager("pcsc-nacl", drmDelegateImpl);
 
-	pcsc_nacl = new PcscNacl(pcscNaClDRM, "khpfeaanjngmcnplbdlpegiifgpfgdco", "CACKey");
+	pcsc_nacl = new PcscNacl(pcscNaClDRM, smartcardManagerAppId, clientId);
 
 	if (!pcsc_nacl->Initialize()) {
 		return;

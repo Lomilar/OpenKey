@@ -91,6 +91,10 @@ function cackeyMessageIncoming(messageEvent) {
 	console.log(messageEvent.data);
 	console.log("END MESSAGE");
 
+	if (messageEvent.data.id == null) {
+		return;
+	}
+
 	chromeCallback = cackeyOutstandingCallbacks[messageEvent.data.id];
 
 	if (chromeCallback == null) {
@@ -296,6 +300,22 @@ function cackeyInitLoaded(messageEvent) {
 		chrome.certificateProvider.onSignDigestRequested.addListener(cackeySignMessage);
 	}
 
+	/*
+	 * Initialize CACKey with the correct handle to talk to the Google Smartcard Manager App
+	 */
+	cackeyHandle.postMessage(
+		{
+			"target": "cackey",
+			"command": "init"
+		}
+	);
+
+	/*
+	 * Start the Google PCSC Interface
+	 */
+	new GoogleSmartCard.PcscNacl(cackeyHandle);
+
+
 	return;
 }
 
@@ -336,11 +356,6 @@ function cackeyInit() {
 	elementEmbed.addEventListener('message', cackeyMessageIncoming, true);
 
 	cackeyHandle = elementEmbed;
-
-	/*
-	 * Start the Google PCSC Interface
-	 */
-	new GoogleSmartCard.PcscNacl(cackeyHandle);
 
 	document.body.appendChild(cackeyHandle)
 
