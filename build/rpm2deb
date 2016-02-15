@@ -34,6 +34,21 @@ rpm2cpio < "${RPMFILE}" > "${TMPCPIOFILE}"
 	cpio -i --no-absolute-filenames --quiet --make-directories < "${TMPCPIOFILE}"
 ) || exit 1
 
+# Rename "lib64" directory for Debian-based distributions
+(
+	cd "${WORKDIR}/root" || exit 1
+
+	if [ -d usr/lib64 ]; then
+		mv usr/lib64 usr/lib || exit 1
+	fi
+
+	if [ -d lib64 ]; then
+		mv lib64 lib || exit 1
+	fi
+
+	exit 0
+) || exit 1
+
 # Create control files
 (
 	cd "${WORKDIR}/root" || exit 1
@@ -58,9 +73,9 @@ echo '2.0' > "${WORKDIR}/deb/debian-binary"
 (
 	cd "${WORKDIR}/root" || exit 1
 
-	cpio -i --list --quiet < "${TMPCPIOFILE}" > "${WORKDIR}/rpm-filelist"
+	find . -type f > "${WORKDIR}/out-filelist"
 
-	tar --files-from "${WORKDIR}/rpm-filelist" -cf - | tardy -User root -Group root | gzip -9c > "${WORKDIR}/deb/data.tar.gz" 
+	tar --files-from "${WORKDIR}/out-filelist" -cf - | tardy -User root -Group root | gzip -9c > "${WORKDIR}/deb/data.tar.gz" 
 ) || exit 1
 
 # Create Debian package
