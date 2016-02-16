@@ -21,6 +21,7 @@ gcc_default_headers_c="$(echo '' | ${CPP:-cpp} -v 2>&1 | sed '/^End of search li
 glibcdir="$(readlink -f /opt/appfs/core.appfs.rkeene.org/glibc/platform/latest)"
 
 ./configure \
+	--with-pin-command-x='/opt/appfs/rkeene.org/cackey/platform/latest/bin/cackey-ask-pin' \
 	--with-pcsc-headers=/opt/appfs/rkeene.org/pcsc-lite/platform/latest/include/PCSC \
 	--with-pcsc-libs="-L$(readlink -f /opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib) -Wl,-rpath,$(readlink -f /opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib) -lpcsclite" \
 	CC="${CC:-gcc} -nostdinc ${gcc_default_headers_c} -isystem ${glibcdir}/include -isystem /opt/appfs/core.appfs.rkeene.org/linux-headers/platform/2.6.32.63/include" \
