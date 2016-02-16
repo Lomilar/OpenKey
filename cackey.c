@@ -817,6 +817,8 @@ struct cackey_slot {
 
 	unsigned int cached_certs_count;
 	struct cackey_pcsc_identity *cached_certs;
+
+	cackey_pcsc_id_type id_type_hint;
 };
 
 typedef enum {
@@ -938,10 +940,11 @@ static unsigned long cackey_getversion(void) {
 /* PC/SC Related Functions */
 /*
  * SYNPOSIS
- *     void cackey_slots_disconnect_all(void);
+ *     void cackey_slots_disconnect_all(int unitialize_all_readers);
  *
  * ARGUMENTS
- *     None
+ *     int unitialize_all_readers      Free the "pcsc_reader" object associated with
+ *                           each slot (boolean)
  *
  * RETURN VALUE
  *     None
@@ -950,7 +953,7 @@ static unsigned long cackey_getversion(void) {
  *     This function disconnects from all cards.
  *
  */
-static void cackey_slots_disconnect_all(void) {
+static void cackey_slots_disconnect_all(int unitialize_all_readers) {
 	uint32_t idx;
 
 	CACKEY_DEBUG_PRINTF("Called.");
@@ -973,15 +976,29 @@ static void cackey_slots_disconnect_all(void) {
 			cackey_slots[idx].label = NULL;
 		}
 
+		if (unitialize_all_readers || !cackey_slots[idx].active) {
+			if (cackey_slots[idx].pcsc_reader) {
+				free(cackey_slots[idx].pcsc_reader);
+
+				cackey_slots[idx].pcsc_reader = NULL;
+			}
+
+			cackey_slots[idx].transaction_need_hw_lock = 0;
+			cackey_slots[idx].transaction_depth = 0;
+			cackey_slots[idx].id_type_hint = CACKEY_ID_TYPE_UNKNOWN;
+		} else {
+			if (cackey_slots[idx].transaction_depth > 0) {
+				cackey_slots[idx].transaction_need_hw_lock = 1;
+			}
+		}
+
 		cackey_slots[idx].pcsc_card_connected = 0;
-		cackey_slots[idx].transaction_depth = 0;
-		cackey_slots[idx].transaction_need_hw_lock = 0;
 
 		if (cackey_slots[idx].active) {
 			CACKEY_DEBUG_PRINTF("Marking active slot %lu as being reset", (unsigned long) idx);
-		}
 
-		cackey_slots[idx].slot_reset = 1;
+			cackey_slots[idx].slot_reset = 1;
+		}
 	}
 
 	CACKEY_DEBUG_PRINTF("Returning");
@@ -1018,7 +1035,7 @@ static cackey_ret cackey_pcsc_connect(void) {
 		if (cackey_pcsc_handle == NULL) {
 			CACKEY_DEBUG_PRINTF("Call to malloc() failed, returning in failure");
 
-			cackey_slots_disconnect_all();
+			cackey_slots_disconnect_all(0);
 
 			return(CACKEY_PCSC_E_GENERIC);
 		}
@@ -1031,7 +1048,7 @@ static cackey_ret cackey_pcsc_connect(void) {
 			free(cackey_pcsc_handle);
 			cackey_pcsc_handle = NULL;
 
-			cackey_slots_disconnect_all();
+			cackey_slots_disconnect_all(0);
 
 			return(CACKEY_PCSC_E_GENERIC);
 		}
@@ -1051,7 +1068,7 @@ static cackey_ret cackey_pcsc_connect(void) {
 			free(cackey_pcsc_handle);
 			cackey_pcsc_handle = NULL;
 
-			cackey_slots_disconnect_all();
+			cackey_slots_disconnect_all(0);
 
 			return(CACKEY_PCSC_E_GENERIC);
 		}
@@ -1101,6 +1118,8 @@ static cackey_ret cackey_pcsc_disconnect(void) {
 	if (scard_rel_context_ret != SCARD_S_SUCCESS) {
 		return(CACKEY_PCSC_E_GENERIC);
 	}
+
+	cackey_slots_disconnect_all(0);
 
 	return(CACKEY_PCSC_S_OK);
 }
@@ -1493,6 +1512,10 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 		CACKEY_DEBUG_PRINTF("Invalid slot specified.");
 
 		return(CACKEY_PCSC_E_GENERIC);
+	}
+
+	if (respcode) {
+		*respcode = 0xffff;
 	}
 
 	pcsc_connect_ret = cackey_connect_card(slot);
@@ -2142,10 +2165,10 @@ static cackey_pcsc_id_type cackey_detect_and_select_root_applet(struct cackey_sl
 	CACKEY_DEBUG_PRINTF("Reselecting the root applet");
 
 	if (type_hint == CACKEY_ID_TYPE_UNKNOWN) {
-		if (slot->cached_certs && slot->cached_certs_count > 0) {
-			type_hint = slot->cached_certs[0].id_type;
-		}
+		type_hint = slot->id_type_hint;
 	}
+
+	slot->id_type_hint = CACKEY_ID_TYPE_UNKNOWN;
 
 	switch (type_hint) {
 		case CACKEY_ID_TYPE_PIV:
@@ -2188,6 +2211,8 @@ static cackey_pcsc_id_type cackey_detect_and_select_root_applet(struct cackey_sl
 			);
 
 			slot->token_flags = CKF_LOGIN_REQUIRED;
+
+			slot->id_type_hint = try_type;
 
 			return(try_type);
 		}
@@ -3162,7 +3187,10 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 			CACKEY_DEBUG_PRINTF("Something went wrong during signing, resetting the slot and hoping for the best.");
 
 			cackey_pcsc_disconnect();
+
 			cackey_pcsc_connect();
+
+			cackey_detect_and_select_root_applet(slot, CACKEY_ID_TYPE_UNKNOWN);
 
 			return(CACKEY_PCSC_E_GENERIC);
 		}
@@ -4587,6 +4615,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_slots[idx].token_flags = 0;
 		cackey_slots[idx].label = NULL;
 		cackey_slots[idx].internal = 0;
+		cackey_slots[idx].id_type_hint = CACKEY_ID_TYPE_UNKNOWN;
 	}
 
 #ifdef CACKEY_NO_EXTRA_CERTS
@@ -4706,15 +4735,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved) {
 		}
 	}
 
-	cackey_slots_disconnect_all();
+	cackey_slots_disconnect_all(1);
 
 	for (idx = 0; idx < (sizeof(cackey_slots) / sizeof(cackey_slots[0])); idx++) {
 		if (cackey_slots[idx].internal) {
 			continue;
-		}
-
-		if (cackey_slots[idx].pcsc_reader) {
-			free(cackey_slots[idx].pcsc_reader);
 		}
 
 		if (cackey_slots[idx].cached_certs) {
@@ -4855,23 +4880,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 			CACKEY_DEBUG_PRINTF("Purging all slot information.");
 
 			/* Only update the list of slots if we are actually being supply the slot information */
-			cackey_slots_disconnect_all();
+			cackey_slots_disconnect_all(1);
 
 			for (currslot = 0; currslot < (sizeof(cackey_slots) / sizeof(cackey_slots[0])); currslot++) {
 				if (cackey_slots[currslot].internal) {
 					continue;
-				}
-
-				if (cackey_slots[currslot].pcsc_reader) {
-					free(cackey_slots[currslot].pcsc_reader);
-
-					cackey_slots[currslot].pcsc_reader = NULL;
-				}
-
-				if (cackey_slots[currslot].label) {
-					free(cackey_slots[currslot].label);
-
-					cackey_slots[currslot].label = NULL;
 				}
 
 				cackey_slots[currslot].active = 0;
