@@ -727,6 +727,8 @@ static const char *CACKEY_DEBUG_FUNC_ATTRIBUTE_TO_STR(CK_ATTRIBUTE_TYPE attr) {
 #include "md5.c"
 
 typedef enum {
+	CACKEY_ID_TYPE_ERROR,
+	CACKEY_ID_TYPE_UNKNOWN,
 	CACKEY_ID_TYPE_CAC,
 	CACKEY_ID_TYPE_PIV,
 	CACKEY_ID_TYPE_CERT_ONLY
@@ -1119,6 +1121,9 @@ static cackey_ret cackey_pcsc_disconnect(void) {
  *
  */
 static void cackey_mark_slot_reset(struct cackey_slot *slot) {
+	struct cackey_pcsc_identity *pcsc_identities;
+	unsigned long num_certs;
+
 	if (slot == NULL) {
 		return;
 	}
@@ -1136,8 +1141,6 @@ static void cackey_mark_slot_reset(struct cackey_slot *slot) {
 	} else {
 		slot->token_flags = 0;
 	}
-
-	CACKEY_DEBUG_PRINTF("Returning.");
 
 	return;
 }
@@ -1257,6 +1260,18 @@ static cackey_ret cackey_connect_card(struct cackey_slot *slot) {
 			}
 
 			scard_conn_ret = cackey_reconnect_card(slot, protocol);
+		}
+
+		if (scard_conn_ret == SCARD_E_NO_SERVICE) {
+			CACKEY_DEBUG_PRINTF("SCardConnect() returned SCARD_E_NO_SERVICE -- which could mean our handle is invalid, will try to reconnect to PC/SC service");
+
+			cackey_pcsc_disconnect();
+
+			cackey_pcsc_connect();
+
+			cackey_mark_slot_reset(slot);
+
+			return(cackey_connect_card(slot));
 		}
 
 		if (scard_conn_ret != SCARD_S_SUCCESS) {
@@ -1557,10 +1572,18 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will ask calling function to retry (not resetting card)...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 
-		/* Begin Smartcard Transaction */
+		/* End Smartcard Transaction */
 		cackey_end_transaction(slot);
 
 		cackey_reconnect_card(slot, slot->protocol);
+
+		return(CACKEY_PCSC_E_RETRY);
+	}
+
+	if (scard_xmit_ret == SCARD_E_NO_SERVICE) {
+		CACKEY_DEBUG_PRINTF("Failed to send APDU to card, possibly due to PC/SC handle being invalid (SCardTransmit() = %s/%lx), will ask calling function to retry...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
+
+		cackey_mark_slot_reset(slot);
 
 		return(CACKEY_PCSC_E_RETRY);
 	}
@@ -2089,6 +2112,94 @@ static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *
 
 /*
  * SYNPOSIS
+ *     cackey_pcsc_id_type cackey_detect_and_select_root_applet(struct cackey_slot *slot, cackey_pcsc_id_type type_hint);
+ *
+ * ARGUMENTS
+ *     struct cackey_slot *slot
+ *         Slot to send commands to
+ *
+ *     cackey_pcsc_id_type type_hint
+ *         A hint as to which type of card might be in this slot (CAC or PIV)
+ *
+ * RETURN VALUE
+ *     CACKEY_ID_TYPE_PIV       If the card connected is a PIV
+ *     CACKEY_ID_TYPE_CAC       If the card connected is a CAC with the CCC
+ *                              applet
+ *     CACKEY_ID_TYPE_ERROR     If we are unable to determine what type of card
+ *                              is connected
+ *
+ * NOTES
+ *     This function reselects the "root" applet, after this function is called
+ *     the user may be required to login again
+ *
+ */
+static cackey_pcsc_id_type cackey_detect_and_select_root_applet(struct cackey_slot *slot, cackey_pcsc_id_type type_hint) {
+	unsigned char ccc_aid[] = {GSCIS_AID_CCC}, piv_aid[] = {NISTSP800_73_3_PIV_AID};
+	cackey_pcsc_id_type try_types[2], try_type;
+	int send_ret;
+	int idx;
+
+	CACKEY_DEBUG_PRINTF("Reselecting the root applet");
+
+	if (type_hint == CACKEY_ID_TYPE_UNKNOWN) {
+		if (slot->cached_certs && slot->cached_certs_count > 0) {
+			type_hint = slot->cached_certs[0].id_type;
+		}
+	}
+
+	switch (type_hint) {
+		case CACKEY_ID_TYPE_PIV:
+			CACKEY_DEBUG_PRINTF("Trying to reselect the PIV root applet first");
+
+			try_types[0] = CACKEY_ID_TYPE_PIV;
+			try_types[1] = CACKEY_ID_TYPE_CAC;
+
+			break;
+		default:
+			CACKEY_DEBUG_PRINTF("Trying to reselect the CAC CCC applet first");
+
+			try_types[0] = CACKEY_ID_TYPE_CAC;
+			try_types[1] = CACKEY_ID_TYPE_PIV;
+
+			break;
+	}
+
+	for (idx = 0; idx < (sizeof(try_types) / sizeof(try_types[0])); idx++) {
+		try_type = try_types[idx];
+
+		switch (try_type) {
+			case CACKEY_ID_TYPE_CAC:
+				CACKEY_DEBUG_PRINTF("Trying to select the CAC CCC applet");
+
+				send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
+
+				break;
+			case CACKEY_ID_TYPE_PIV:
+				CACKEY_DEBUG_PRINTF("Trying to select the PIV root applet");
+
+				send_ret = cackey_select_applet(slot, piv_aid, sizeof(piv_aid));
+
+				break;
+		}
+
+		if (send_ret == CACKEY_PCSC_S_OK) {
+			CACKEY_DEBUG_PRINTF("Successfully selected the %s applet -- setting the \"LOGIN REQUIRED\" flag on the token",
+				try_type == CACKEY_ID_TYPE_CAC ? "CAC" : "PIV"
+			);
+
+			slot->token_flags = CKF_LOGIN_REQUIRED;
+
+			return(try_type);
+		}
+	}
+
+	CACKEY_DEBUG_PRINTF("Unable to select any applet, returning in failure");
+
+	return(CACKEY_ID_TYPE_ERROR);
+}
+
+/*
+ * SYNPOSIS
  *     cackey_ret cackey_select_file(struct cackey_slot *slot, uint16_t ef);
  *
  * ARGUMENTS
@@ -2450,9 +2561,9 @@ static struct cackey_pcsc_identity *cackey_copy_certs(struct cackey_pcsc_identit
  *
  */
 static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, struct cackey_pcsc_identity *certs, unsigned long *count) {
+	cackey_pcsc_id_type check_id_type;
 	struct cackey_pcsc_identity *curr_id;
 	struct cackey_tlv_entity *ccc_tlv, *ccc_curr, *app_tlv, *app_curr;
-	unsigned char ccc_aid[] = {GSCIS_AID_CCC}, piv_aid[] = {NISTSP800_73_3_PIV_AID};
 	unsigned char *piv_oid, piv_oid_pivauth[] = {NISTSP800_73_3_OID_PIVAUTH}, piv_oid_signature[] = {NISTSP800_73_3_OID_SIGNATURE}, piv_oid_keymgt[] = {NISTSP800_73_3_OID_KEYMGT};
 	unsigned char curr_aid[7];
 	unsigned char buffer[8192], *buffer_p, *tmpbuf;
@@ -2464,7 +2575,9 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 	int certs_resizable;
 	int send_ret, select_ret;
 	int piv_key, piv = 0;
+	int cached_certs_valid;
 	int idx;
+	cackey_pcsc_id_type id_type;
 #ifdef HAVE_LIBZ
 	int uncompress_ret;
 	z_stream gzip_stream;
@@ -2486,21 +2599,32 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 		}
 	}
 
+	cached_certs_valid = 0;
 	if (!slot->slot_reset) {
 		if (slot->cached_certs) {
-			if (certs == NULL) {
-				certs = malloc(sizeof(*certs) * slot->cached_certs_count);
-				*count = slot->cached_certs_count;
-			} else {
-				if (*count > slot->cached_certs_count) {
-					*count = slot->cached_certs_count;
-				}
+			cached_certs_valid = 1;
+
+			if (slot->cached_certs_count > 0) {
+				cached_certs_valid = 1;
 			}
-
-			cackey_copy_certs(certs, slot->cached_certs, *count);
-
-			return(certs);
 		}
+	}
+
+	if (cached_certs_valid) {
+		if (certs == NULL) {
+			certs = malloc(sizeof(*certs) * slot->cached_certs_count);
+			*count = slot->cached_certs_count;
+		} else {
+			if (*count > slot->cached_certs_count) {
+				*count = slot->cached_certs_count;
+			}
+		}
+
+		cackey_copy_certs(certs, slot->cached_certs, *count);
+
+		CACKEY_DEBUG_PRINTF("Returning cached certificates for this slot (card has not been reset and there are cached certs available)");
+
+		return(certs);
 	}
 
 	if (slot->cached_certs) {
@@ -2517,18 +2641,18 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 		return(NULL);
 	}
 
-	/* Select the CCC Applet */
-	send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
-	if (send_ret != CACKEY_PCSC_S_OK) {
-		/* Try PIV application */
-		send_ret = cackey_select_applet(slot, piv_aid, sizeof(piv_aid));
-		if (send_ret == CACKEY_PCSC_S_OK) {
-			CACKEY_DEBUG_PRINTF("We have a PIV card -- not using the CCC, pulling pre-selected keys");
+	id_type = cackey_detect_and_select_root_applet(slot, CACKEY_ID_TYPE_UNKNOWN);
 
+	switch (id_type) {
+		case CACKEY_ID_TYPE_CAC:
+			piv = 0;
+
+			break;
+		case CACKEY_ID_TYPE_PIV:
 			piv = 1;
-		} else {
-			CACKEY_DEBUG_PRINTF("Unable to select CCC Applet, returning in failure");
 
+			break;
+		case CACKEY_ID_TYPE_ERROR:
 			/* Terminate SmartCard Transaction */
 			cackey_end_transaction(slot);
 
@@ -2537,7 +2661,12 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
 			}
 
 			return(NULL);
-		}
+
+			break;
+		case CACKEY_ID_TYPE_CERT_ONLY:
+			CACKEY_DEBUG_PRINTF("Error.  Impossible condition reached.");
+
+			break;
 	}
 
 	if (certs == NULL) {
@@ -2792,7 +2921,7 @@ static struct cackey_pcsc_identity *cackey_read_certs(struct cackey_slot *slot, 
  *
  */
 static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identity *identity, unsigned char *buf, size_t buflen, unsigned char *outbuf, size_t outbuflen, int padInput, int unpadOutput) {
-	cackey_pcsc_id_type id_type;
+	cackey_pcsc_id_type id_type, check_id_type;
 	unsigned char dyn_auth_template[10], *dyn_auth_tmpbuf;
 	unsigned char *tmpbuf, *tmpbuf_s, *outbuf_s, *outbuf_p;
 	unsigned char bytes_to_send, p1, class;
@@ -3004,14 +3133,18 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 			CACKEY_DEBUG_PRINTF("ADPU Sending Failed -- returning in error.");
 
-			if (respcode == 0x6982 || respcode == 0x6e00) {
-				if (respcode == 0x6E00) {
+			if (respcode == 0x6982 || respcode == 0x6e00 || respcode == 0x6d00) {
+				if (respcode == 0x6e00) {
 					CACKEY_DEBUG_PRINTF("Got \"WRONG CLASS\", this means we are talking to the wrong object (likely because the card went away) -- resetting");
+				} else if (respcode == 0x6d00) {
+					CACKEY_DEBUG_PRINTF("Got \"INVALID INSTRUCTION\", this means we are talking to the wrong object (likely because the card went away) -- resetting");
 				} else {
 					CACKEY_DEBUG_PRINTF("Security status not satisified (respcode = 0x%04x).  Returning NEEDLOGIN", (int) respcode);
 				}
 
 				cackey_mark_slot_reset(slot);
+
+				cackey_detect_and_select_root_applet(slot, CACKEY_ID_TYPE_UNKNOWN);
 
 				slot->token_flags = CKF_LOGIN_REQUIRED;
 
@@ -3028,7 +3161,8 @@ static ssize_t cackey_signdecrypt(struct cackey_slot *slot, struct cackey_identi
 
 			CACKEY_DEBUG_PRINTF("Something went wrong during signing, resetting the slot and hoping for the best.");
 
-			cackey_mark_slot_reset(slot);
+			cackey_pcsc_disconnect();
+			cackey_pcsc_connect();
 
 			return(CACKEY_PCSC_E_GENERIC);
 		}
@@ -3464,6 +3598,10 @@ static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, uns
 				CACKEY_DEBUG_PRINTF("We did not expect this because it is not mentioned in NIST SP 800-73-3 Part 2 Section 3.2.1 or GSC-IS v2.1");
 				CACKEY_DEBUG_PRINTF("We are going to try to reset the card and select the applet again.");
 
+				if (num_certs > 0 && pcsc_identities != NULL) {
+					cackey_detect_and_select_root_applet(slot, pcsc_identities[0].id_type);
+				}
+
 				cackey_mark_slot_reset(slot);
 
 				connect_ret = cackey_connect_card(slot);
@@ -3480,7 +3618,6 @@ static cackey_ret cackey_login(struct cackey_slot *slot, unsigned char *pin, uns
 
 					return(token_ret);
 				}
-
 
 				CACKEY_DEBUG_PRINTF("Trying to login again");
 				return(cackey_login(slot, pin, pin_len, tries_remaining_p, retries - 1));
