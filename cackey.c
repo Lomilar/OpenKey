@@ -4898,6 +4898,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR p
 			scard_listreaders_ret = SCardListReaders(*cackey_pcsc_handle, NULL, NULL, &pcsc_readers_len);
 		}
 
+		if (scard_listreaders_ret == SCARD_E_INSUFFICIENT_BUFFER) {
+			CACKEY_DEBUG_PRINTF("Error. SCardListReaders() returned SCARD_E_INSUFFICIENT_BUFFER, assuming this is a bug (e.g., Google PCSC) and allocating a massive amount of space to hold the reader list.");
+
+			pcsc_readers_len = 32768;
+			scard_listreaders_ret = SCARD_S_SUCCESS;
+		}
+
 		if (scard_listreaders_ret == SCARD_S_SUCCESS && pcsc_readers_len != 0) {
 			pcsc_readers = malloc(pcsc_readers_len);
 			pcsc_readers_s = pcsc_readers;
