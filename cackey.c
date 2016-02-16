@@ -5209,13 +5209,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 		return(CKR_TOKEN_NOT_PRESENT);
 	}
 
-	mutex_retval = cackey_mutex_unlock(cackey_biglock);
-	if (mutex_retval != 0) {
-		CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
-
-		return(CKR_GENERAL_ERROR);
-	}
-
 	/* Determine token label from certificates */
 	memset(pInfo->label, ' ', sizeof(pInfo->label));
 	use_default_label = 1;
@@ -5240,6 +5233,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 		memcpy(pInfo->label, cackey_slots[slotID].label, sizeof(pInfo->label));
 
 		use_default_label = 0;
+	}
+
+	mutex_retval = cackey_mutex_unlock(cackey_biglock);
+	if (mutex_retval != 0) {
+		CACKEY_DEBUG_PRINTF("Error.  Unlocking failed.");
+
+		return(CKR_GENERAL_ERROR);
 	}
 
 	if (use_default_label) {
