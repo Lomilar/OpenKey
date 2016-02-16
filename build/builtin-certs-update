@@ -3,7 +3,7 @@
 set -e
 
 ourdir="$(dirname "$(which "$0")")"
-cd "${outdir}" || exit 1
+cd "${ourdir}" || exit 1
 
 make -C certs/dod distclean all
 make -C certs/federal distclean all
