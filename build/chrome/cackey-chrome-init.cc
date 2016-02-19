@@ -62,7 +62,9 @@ class CACKeyInstance : public pp::Instance {
 
 				pcscNaClInit(this, corePointer, smartcardManagerAppId, "CACKey");
 
-				free((void *) smartcardManagerAppId);
+				if (smartcardManagerAppId) {
+					free((void *) smartcardManagerAppId);
+				}
 
 				reply->Set("status", "success");
 			} else if (command.AsString() == "listcertificates") {
