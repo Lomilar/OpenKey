@@ -3,6 +3,10 @@
 	"name": "CACKey",
 	"version": "0.7.5.1",
 
+	"icons": {
+		"128": "icon.png"
+	},
+
 	"app": {
 		"background": {
 			"scripts": [
