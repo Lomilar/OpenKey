@@ -13,9 +13,11 @@ LDFLAGS     = -g3 -ggdb3
 
 CACKEY_DEBUG = 0
 ifeq (1,$(CACKEY_DEBUG))
-CACKEY_LIBNAME = libcackey_g
+CACKEY_LIBNAME     = libcackey_g
+CACKEY_EXECUTABLES = cackey.pexe cackey.bc
 else
-CACKEY_LIBNAME = libcackey
+CACKEY_LIBNAME     = libcackey
+CACKEY_EXECUTABLES = cackey.pexe
 endif
 
 PATH += :${NACL_SDK_ROOT}/toolchain/linux_pnacl/bin
@@ -28,18 +30,22 @@ export NACL_SDK_ROOT
 
 all: cackey.crx
 
-cackey.crx: cackey.pexe cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png
+cackey.crx: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png
 	rm -f cackey.crx
 	zip cackey.crx.new $^
 	mv cackey.crx.new cackey.crx
 
-cackey.pexe: cackey-chrome.o cackey-chrome-init.o lib/libcackey.a lib/libpcsc.a lib/libz.a
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o cackey.pexe.new cackey-chrome.o cackey-chrome-init.o $(LIBS)
+cackey.bc: cackey-chrome.o cackey-chrome-init.o lib/libcackey.a lib/libpcsc.a lib/libz.a
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o cackey.bc.new cackey-chrome.o cackey-chrome-init.o $(LIBS)
+	mv cackey.bc.new cackey.bc
+
+cackey.pexe: cackey.bc
+	cp cackey.bc cackey.pexe.new
 	$(FINALIZE) cackey.pexe.new
 	mv cackey.pexe.new cackey.pexe
 
-cackey.nmf: cackey.pexe
-	${NACL_SDK_ROOT}/tools/create_nmf.py cackey.pexe > cackey.nmf.new
+cackey.nmf: $(CACKEY_EXECUTABLES)
+	${NACL_SDK_ROOT}/tools/create_nmf.py $(CACKEY_EXECUTABLES) > cackey.nmf.new
 	mv cackey.nmf.new cackey.nmf
 
 lib/libcackey.a: build-deps
@@ -84,7 +90,7 @@ cackey-chrome-init.o: cackey-chrome-init.cc cackey-chrome.h include/PCSC/pcsc-na
 
 clean:
 	rm -f cackey-chrome.o cackey-chrome-init.o
-	rm -f cackey.pexe
+	rm -f cackey.pexe cackey.bc
 	rm -f cackey.crx cackey.nmf
 	rm -f test
 
