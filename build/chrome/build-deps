@@ -259,8 +259,8 @@ _EOF_
 
 		## Create Makefile
 		cat << \_EOF_ > third_party/pcsc-lite/client-side/Makefile || exit 1
-CFLAGS   += -Wall -std=gnu++11
-CXXFLAGS += -Wall -std=gnu++11
+CFLAGS   += -Wall -std=gnu++11 -g3 -ggdb3
+CXXFLAGS += -Wall -std=gnu++11 -g3 -ggdb3
 CPPFLAGS += -I../src/src/PCSC
 
 OBJS = pcsc_nacl.o pcsc_nacl_global.o scard_structs_serialization.o pp_var_utils.o logging.o dom_requests_manager.o pcsc_nacl_init.o
@@ -324,9 +324,11 @@ void pcscNaClInit(pp::Instance *instance, pp::Core *core, const char *smartcardM
 		clientId = "UNKNOWN";
 	}
 
-	drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
-
-	pcscNaClDRM = new DomRequestsManager("pcsc-nacl", drmDelegateImpl);
+	if (pcscNaClDRM == NULL) {
+		drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
+	
+		pcscNaClDRM = new DomRequestsManager("pcsc-nacl", drmDelegateImpl);
+	}
 
 	pcsc_nacl = new PcscNacl(pcscNaClDRM, smartcardManagerAppId, clientId);
 
@@ -371,7 +373,7 @@ function buildCACKey() {
 
 		make distclean
 
-		./configure --host=nacl --with-pcsc-headers="${instdir}/include/PCSC" --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay --disable-dod-certs || exit 1
+		./configure --host=nacl --with-pcsc-headers="${instdir}/include/PCSC" --with-pcsc-libs="-lpcsc" cackey_cv_pcsc_works=okay --disable-dod-certs CFLAGS='-g3 -ggdb3 -Wall' || exit 1
 		make || exit 1
 	) || return 1
 
