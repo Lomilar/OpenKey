@@ -404,6 +404,22 @@ function cackeyInit() {
 	/* Log that we are operational */
 	console.log("[cackey] cackeyInit(): Called.");
 
+	/*
+	 * Create a handler for starting the application UI
+	 */
+	chrome.app.runtime.onLaunched.addListener(function() {
+		chrome.app.window.create('ui.html', {
+			"id": "cackeyUI",
+			"focused": true,
+			"innerBounds": {
+				"width": 350,
+				"minWidth": 350,
+				"height": 135,
+				"minHeight": 135
+			}
+		});
+	});
+
 	/* Verify that we can register callbacks */
 	if (!chrome.certificateProvider) {
 		if (!GoogleSmartCard.IS_DEBUG_BUILD) {
