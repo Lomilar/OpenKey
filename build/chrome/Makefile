@@ -32,7 +32,7 @@ export NACL_SDK_ROOT
 
 all: cackey.zip
 
-cackey.zip: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png icon.png
+cackey.zip: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png icon.png ui.html
 	rm -f cackey.zip
 	zip cackey.zip.new $^
 	mv cackey.zip.new cackey.zip
