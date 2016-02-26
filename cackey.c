@@ -1594,6 +1594,8 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	memcpy(&pioRecvPci, pioSendPci, sizeof(pioRecvPci));
 	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, &pioRecvPci, recv_buf, &recv_len);
 
+	CACKEY_DEBUG_PRINTF("SCardTransmit() completed with value: %s/%lx", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
+
 	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will ask calling function to retry (not resetting card)...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
 
