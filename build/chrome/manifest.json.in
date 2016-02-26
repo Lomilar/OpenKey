@@ -4,7 +4,6 @@
 	"short_name": "CACKey",
 	"version": "@PACKAGE_VERSION@.4",
 
-	"default_locale": "en",
 	"description": "US Department of Defense Common Access Card (CAC) and US NIST SP 800-73 Personal Identity Verification (PIV) card support.",
 	"homepage_url": "https://cackey.rkeene.org/",
 
