@@ -7,14 +7,16 @@ FINALIZE = pnacl-finalize
 CACKEY_LIBS = -Llib -lcackey -lz
 PCSC_LIBS   = -Llib -lpcsc -L${NACL_SDK_ROOT}/lib/pnacl/Release -lppapi -lppapi_cpp
 LIBS        = $(CACKEY_LIBS) $(PCSC_LIBS)
-CFLAGS      = -Wall -g3 -ggdb3 -I${NACL_SDK_ROOT}/include -I../../pkcs11 -Iinclude/PCSC
+CFLAGS      = -Wall -I${NACL_SDK_ROOT}/include -I../../pkcs11 -Iinclude/PCSC
 CXXFLAGS    = $(CFLAGS) -std=gnu++11
-LDFLAGS     = -g3 -ggdb3
 
 CACKEY_DEBUG = 0
 ifeq (1,$(CACKEY_DEBUG))
 CACKEY_LIBNAME     = libcackey_g
 CACKEY_EXECUTABLES = cackey.pexe cackey.bc
+CFLAGS             += -g3 -ggdb3
+CXXFLAGS           += -g3 -ggdb3
+LDFLAGS            += -g3 -ggdb3
 else
 CACKEY_LIBNAME     = libcackey
 CACKEY_EXECUTABLES = cackey.pexe
