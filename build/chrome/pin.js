@@ -43,21 +43,40 @@ setTimeout(function() {
 		}, 1);
 	}
 
-	document.getElementById('pin').onkeypress = function(keyEvent) {
+	document.getElementById('pin').onkeypress = document.getElementById('pin').onkeyup = function(keyEvent) {
+		var tryKeyPressed;
+		var keyPressed;
+		var idx;
+
 		if (!keyEvent) {
 			return(true);
 		}
 
-		if (!keyEvent.keyIdentifier) {
-			return(true);
+		tryKeyPressed = [];
+
+		if (keyEvent.keyIdentifier) {
+			tryKeyPressed.push(keyEvent.keyIdentifier);
 		}
 
-		if (keyEvent.keyIdentifier != "Enter") {
-			return(true);
+		if (keyEvent.code) {
+			tryKeyPressed.push(keyEvent.code);
 		}
 
-		clickOk();
+		for (idx = 0; idx < tryKeyPressed.length; idx++ ) {
+			keyPressed = tryKeyPressed[idx];
 
-		return(false);
+			switch (keyPressed) {
+				case "Enter":
+					clickOk();
+
+					return(false);
+				case "Escape":
+					clickCancel();
+
+					return(false);
+			}
+		}
+
+		return(true);
 	};
 }, 1);
