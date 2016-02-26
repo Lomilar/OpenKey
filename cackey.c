@@ -1500,6 +1500,7 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	uint8_t major_rc, minor_rc;
 	size_t bytes_to_copy, tmp_respdata_len;
 	LPCSCARD_IO_REQUEST pioSendPci;
+	SCARD_IO_REQUEST pioRecvPci;
 	DWORD xmit_len, recv_len;
 	LONG scard_xmit_ret, scard_reconn_ret;
 	BYTE xmit_buf[1024], recv_buf[1024];
@@ -1590,7 +1591,8 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 	}
 
 	recv_len = sizeof(recv_buf);
-	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+	memcpy(&pioRecvPci, pioSendPci, sizeof(pioRecvPci));
+	scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, &pioRecvPci, recv_buf, &recv_len);
 
 	if (scard_xmit_ret == SCARD_E_NOT_TRANSACTED) {
 		CACKEY_DEBUG_PRINTF("Failed to send APDU to card (SCardTransmit() = %s/%lx), will ask calling function to retry (not resetting card)...", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (unsigned long) scard_xmit_ret);
@@ -1648,7 +1650,8 @@ static cackey_ret cackey_send_apdu(struct cackey_slot *slot, unsigned char class
 				CACKEY_DEBUG_PRINTF("Reset successful, retransmitting");
 
 				recv_len = sizeof(recv_buf);
-				scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, NULL, recv_buf, &recv_len);
+				memcpy(&pioRecvPci, pioSendPci, sizeof(pioRecvPci));
+				scard_xmit_ret = SCardTransmit(slot->pcsc_card, pioSendPci, xmit_buf, xmit_len, &pioRecvPci, recv_buf, &recv_len);
 
 				if (scard_xmit_ret != SCARD_S_SUCCESS) {
 					CACKEY_DEBUG_PRINTF("Retransmit failed, returning in failure after disconnecting the card (SCardTransmit = %s/%li)", CACKEY_DEBUG_FUNC_SCARDERR_TO_STR(scard_xmit_ret), (long) scard_xmit_ret);
