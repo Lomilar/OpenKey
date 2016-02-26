@@ -30,7 +30,7 @@ class CACKeyInstance : public pp::Instance {
 
 		virtual ~CACKeyInstance() {}
 
-		virtual void HandleMessageThread(pp::VarDictionary *message) {
+		virtual void HandleMessageThread(pp::VarDictionary *message, pp::Var *messagePlain) {
 			cackey_chrome_returnType signRet;
 			char *pinPrompt = NULL;
 			const char *pin;
@@ -41,7 +41,7 @@ class CACKeyInstance : public pp::Instance {
 			pp::VarArray certificatesPPArray;
 			pp::VarArrayBuffer *certificateContents, *incomingCertificateContents, *incomingData, *outgoingData;
 			pp::Var command;
-			const pp::Var *messageAsVar = NULL, *outgoingDataAsVar = NULL;
+			const pp::Var *outgoingDataAsVar = NULL;
 			int numCertificates, i;
 			unsigned long outgoingDataLength;
 
@@ -137,8 +137,6 @@ class CACKeyInstance : public pp::Instance {
 							reply->Set("status", "success");
 							reply->Set("signedData", outgoingDataAsVar);
 
-							delete outgoingDataAsVar;
-
 							break;
 						case CACKEY_CHROME_ERROR:
 							reply->Set("status", "error");
@@ -146,13 +144,9 @@ class CACKeyInstance : public pp::Instance {
 							break;
 						case CACKEY_CHROME_NEEDLOGIN:
 						case CACKEY_CHROME_NEEDPROTECTEDLOGIN:
-							messageAsVar = new pp::Var(message->pp_var());
-
 							reply->Set("status", "retry");
-							reply->Set("originalrequest", messageAsVar);
+							reply->Set("originalrequest", *messagePlain);
 							reply->Set("pinprompt", pinPrompt);
-
-							delete messageAsVar;
 
 							break;
 					}
@@ -188,11 +182,18 @@ class CACKeyInstance : public pp::Instance {
 
 			delete message;
 
+			delete messagePlain;
+
+			if (outgoingDataAsVar) {
+				delete outgoingDataAsVar;
+			}
+
 			return;
 		}
 
 		virtual void HandleMessage(const pp::Var& messagePlain) {
 			pp::VarDictionary *message;
+			pp::Var *messagePlainCopy;
 			pp::Var target;
 
 			/*
@@ -246,7 +247,8 @@ class CACKeyInstance : public pp::Instance {
 			/*
 			 * Process the request in another thread
 			 */
-			std::thread(&CACKeyInstance::HandleMessageThread, this, message).detach();
+			messagePlainCopy = new pp::Var(messagePlain);
+			std::thread(&CACKeyInstance::HandleMessageThread, this, message, messagePlainCopy).detach();
 
 			return;
 		}
