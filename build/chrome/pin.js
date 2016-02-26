@@ -42,4 +42,22 @@ setTimeout(function() {
 			}
 		}, 1);
 	}
+
+	document.getElementById('pin').onkeypress = function(keyEvent) {
+		if (!keyEvent) {
+			return(true);
+		}
+
+		if (!keyEvent.keyIdentifier) {
+			return(true);
+		}
+
+		if (keyEvent.keyIdentifier != "Enter") {
+			return(true);
+		}
+
+		clickOk();
+
+		return(false);
+	};
 }, 1);
