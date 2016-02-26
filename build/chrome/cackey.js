@@ -226,9 +226,15 @@ function cackeyMessageIncoming(messageEvent) {
 
 							cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
 						}
-
-						delete cackeyMessagesToRetry[messageIdx];
 					}
+
+
+					/*
+					 * Delete the existing handle and create a new one
+					 */
+					delete cackeyMessagesToRetry;
+
+					cackeyMessagesToRetry = [];
 
 					/*
 					 * We are done fetching the user PIN, clear the value
