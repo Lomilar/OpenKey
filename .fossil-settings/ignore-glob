@@ -33,3 +33,4 @@ build/chrome/cackey.nmf
 build/chrome/cackey.zip
 build/chrome/test
 build/chrome/google-pcsc.js
+build/chrome/manifest.json

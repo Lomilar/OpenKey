@@ -50,7 +50,7 @@ cackey.nmf: $(CACKEY_EXECUTABLES)
 	${NACL_SDK_ROOT}/tools/create_nmf.py $(CACKEY_EXECUTABLES) > cackey.nmf.new
 	mv cackey.nmf.new cackey.nmf
 
-lib/libcackey.a: build-deps
+lib/libcackey.a: build-deps ../../cackey.c archive/smart-card-client-c-example-app-sources.zip
 	mkdir -p lib
 	rm -f lib/libcackey.a
 	rm -rf workdir-*
@@ -84,6 +84,11 @@ include/PCSC/pcsc-nacl.h: lib/libcackey.a
 	touch include/PCSC/pcsc-nacl.h.new
 	mv include/PCSC/pcsc-nacl.h.new include/PCSC/pcsc-nacl.h
 
+manifest.json: manifest.json.in ../../configure.ac
+	rm -f manifest.json.new
+	sed 's/@PACKAGE_VERSION@/$(shell sed '/^AC_INIT/ {s@.*, @@;s@[^0-9\.].@@g;p};d' ../../configure.ac)/g' manifest.json.in > manifest.json.new
+	mv manifest.json.new manifest.json
+
 test: cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c Makefile
 	gcc -g3 -ggdb3 -Wall -I. -I../../pkcs11 -I/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/include -I/opt/appfs/rkeene.org/pcsc-lite/platform/latest/include/PCSC -DHAVE_WINTYPES_H=1 -DHAVE_PCSCLITE_H=1 -DHAVE_WINSCARD_H=1 -DHAVE_STDINT_H=1 -DHAVE_INTTYPES_H=1 -DHAVE_STDLIB_H=1 -DHAVE_UNISTD_H=1 -DHAVE_STRING_H=1 -DHAVE_PTHREAD_H=1 -DHAVE_LIMITS_H=1 -DHAVE_STDIO_H=1 -DHAVE_ZLIB_H -DHAVE_LIBZ -DCACKEY_DEBUG=1 -o test cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c -L/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -lz -L/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -lpcsclite -L/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -lc -lpthread -Wl,-R,/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -Wl,-R,/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -Wl,-R,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -Wl,-dynamic-linker,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib/ld-linux-x86-64.so.2
 
@@ -94,6 +99,7 @@ clean:
 	rm -f cackey-chrome-pkcs11.o cackey-chrome-plugin.o
 	rm -f cackey.pexe cackey.bc
 	rm -f cackey.zip cackey.nmf
+	rm -f manifest.json manifest.json.new
 	rm -f test
 
 distclean: clean
