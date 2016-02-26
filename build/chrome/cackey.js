@@ -114,9 +114,11 @@ function cackeyMessageIncoming(messageEvent) {
 		return;
 	}
 
-	console.log("START MESSAGE");
-	console.log(messageEvent.data);
-	console.log("END MESSAGE");
+	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+		console.log("START MESSAGE");
+		console.log(messageEvent.data);
+		console.log("END MESSAGE");
+	}
 
 	/*
 	 * If we failed for some reason and we have a certificate in the original
@@ -135,7 +137,7 @@ function cackeyMessageIncoming(messageEvent) {
 	chromeCallback = cackeyOutstandingCallbacks[messageEvent.data.id];
 
 	if (chromeCallback == null) {
-		console.log("[cackey] Discarding outdated message");
+		console.error("[cackey] Discarding outdated message");
 
 		return;
 	}
@@ -188,7 +190,7 @@ function cackeyMessageIncoming(messageEvent) {
 				pinWindowPINValue = "";
 
 				if (!pinWindow) {
-					console.log("[cackey] No window was provided for PIN entry, this will not go well.");
+					console.error("[cackey] No window was provided for PIN entry, this will not go well.");
 
 					return;
 				}
@@ -213,7 +215,9 @@ function cackeyMessageIncoming(messageEvent) {
 						tmpMessageEvent = cackeyMessagesToRetry[messageIdx];
 
 						if (pinWindowPINValue == "") {
-							console.log("[cackey] The PIN dialog was closed without gathering a PIN, treating it as a failure.");
+							if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+								console.log("[cackey] The PIN dialog was closed without gathering a PIN, treating it as a failure.");
+							}
 
 							tmpMessageEvent.data.status = "error";
 							tmpMessageEvent.data.error = "PIN window closed without a PIN being provided";
@@ -288,7 +292,9 @@ function cackeyMessageIncoming(messageEvent) {
 function cackeyListCertificates(chromeCallback) {
 	var callbackId;
 
-	console.log("[cackey] Asked to provide a list of certificates -- throwing that request over to the NaCl side... ");
+	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+		console.log("[cackey] Asked to provide a list of certificates -- throwing that request over to the NaCl side... ");
+	}
 
 	callbackId = cackeyOutstandingCallbackCounter + 1;
 
@@ -303,7 +309,9 @@ function cackeyListCertificates(chromeCallback) {
 	cackeyOutstandingCallbackCounter = callbackId;
 	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
-	console.log("[cackey] Thrown.");
+	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+		console.log("[cackey] Thrown.");
+	}
 
 	return;
 }
@@ -344,7 +352,9 @@ function cackeySignMessage(signRequest, chromeCallback) {
 
 	delete digestHeader;
 
-	console.log("[cackey] Asked to sign a message -- throwing that request over to the NaCl side... ");
+	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+		console.log("[cackey] Asked to sign a message -- throwing that request over to the NaCl side... ");
+	}
 
 	callbackId = cackeyOutstandingCallbackCounter + 1;
 
@@ -367,7 +377,9 @@ function cackeySignMessage(signRequest, chromeCallback) {
 	cackeyOutstandingCallbackCounter = callbackId;
 	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
-	console.log("[cackey] Thrown.");
+	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+		console.log("[cackey] Thrown.");
+	}
 
 	return;
 }
@@ -399,7 +411,6 @@ function cackeyInitLoaded(messageEvent) {
 	 * Start the Google PCSC Interface
 	 */
 	new GoogleSmartCard.PcscNacl(cackeyHandle);
-
 
 	return;
 }
