@@ -12,6 +12,7 @@ function onCertificatesRejected(rejectedCerts) {
  * Handle for the CACKey NaCl Target
  */
 var cackeyHandle = null;
+var cackeyPCSCHandle = null;
 
 /*
  * Handle and ID for outstanding callbacks
@@ -387,6 +388,51 @@ function cackeySignMessage(signRequest, chromeCallback) {
 }
 
 /*
+ * Uninitializes CACKey (probably due to a crash)
+ */
+function cackeyUninit() {
+	if (chrome.certificateProvider) {
+		chrome.certificateProvider.onCertificatesRequested.removeListener(cackeyListCertificates);
+		chrome.certificateProvider.onSignDigestRequested.removeListener(cackeySignMessage);
+	}
+
+	if (cackeyPCSCHandle != null) {
+		delete cackeyPCSCHandle;
+
+		cackeyPCSCHandle = null;
+	}
+
+	if (cackeyHandle != null) {
+		try {
+			document.body.removeChild(cackeyHandle);
+		} catch (e) { }
+
+		delete cackeyHandle;
+
+		cackeyHandle = null;
+	}
+}
+
+/*
+ * Restarts CACKey
+ */
+function cackeyRestart() {
+	cackeyUninit();
+	cackeyInit();
+}
+
+/*
+ * Handle a CACKey crash (probably due to loss of connectivity to the PCSC daemon)
+ */
+function cackeyCrash() {
+	/*
+	 * Schedule the restart to occur in 30 seconds in case we really are
+	 * not working.
+	 */
+	setTimeout(cackeyRestart, 30000);
+}
+
+/*
  * Finish performing initialization that must wait until we have loaded the CACKey module
  */
 function cackeyInitLoaded(messageEvent) {
@@ -412,7 +458,7 @@ function cackeyInitLoaded(messageEvent) {
 	/*
 	 * Start the Google PCSC Interface
 	 */
-	new GoogleSmartCard.PcscNacl(cackeyHandle);
+	cackeyPCSCHandle = new GoogleSmartCard.PcscNacl(cackeyHandle);
 
 	return;
 }
@@ -422,10 +468,59 @@ function cackeyInitLoaded(messageEvent) {
  */
 function cackeyInit() {
 	var elementEmbed;
+	var forceLoadElement;
 
 	/* Log that we are operational */
 	console.log("[cackey] cackeyInit(): Called.");
 
+	/*
+	 * Do not initialize multiple times
+	 */
+	if (cackeyHandle != null) {
+		console.log("[cackey] cackeyInit(): Already initialized.  Returning.");
+
+		return;
+	}
+
+	/* Verify that we can register callbacks */
+	if (!chrome.certificateProvider) {
+		if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+			console.error("[cackey] This extension only works on ChromeOS!");
+
+			return;
+		} else {
+			console.log("[cackey] This extension only works on ChromeOS, but you appear to be debugging it -- trying anyway.");
+		}
+	}
+
+	elementEmbed = document.createElement('embed');
+	elementEmbed.type = "application/x-pnacl";
+	elementEmbed.width = 0;
+	elementEmbed.height = 0;
+	elementEmbed.src = "cackey.nmf";
+	elementEmbed.id = "cackeyModule";
+	elementEmbed.addEventListener('error', function(messageEvent) { console.error("Error loading CACKey PNaCl Module: " + messageEvent.data); }, true);
+	elementEmbed.addEventListener('load', cackeyInitLoaded, true);
+	elementEmbed.addEventListener('crash', cackeyCrash, true);
+	elementEmbed.addEventListener('message', cackeyMessageIncoming, true);
+
+	cackeyHandle = elementEmbed;
+
+	document.body.appendChild(cackeyHandle)
+
+	/*
+	 * Force the browser to load the element
+	 * by requesting its position
+	 */
+	forceLoadElement = cackeyHandle.offsetTop;
+
+	console.log("[cackey] cackeyInit(): Completed.  Returning.");
+}
+
+/*
+ * Initialize the CACKey Chrome Application
+ */
+function cackeyAppInit() {
 	/*
 	 * Create a handler for starting the application UI
 	 */
@@ -441,40 +536,8 @@ function cackeyInit() {
 			}
 		});
 	});
-
-	/* Verify that we can register callbacks */
-	if (!chrome.certificateProvider) {
-		if (!GoogleSmartCard.IS_DEBUG_BUILD) {
-			console.error("[cackey] This extension only works on ChromeOS!");
-
-			return;
-		} else {
-			console.log("[cackey] This extension only works on ChromeOS, but you appear to be debugging it -- trying anyway.");
-		}
-	}
-
-	if (cackeyHandle != null) {
-		console.log("[cackey] cackeyInit(): Already initialized.  Returning.");
-
-		return;
-	}
-
-	elementEmbed = document.createElement('embed');
-	elementEmbed.type = "application/x-pnacl";
-	elementEmbed.width = 0;
-	elementEmbed.height = 0;
-	elementEmbed.src = "cackey.nmf";
-	elementEmbed.id = "cackeyModule";
-	elementEmbed.addEventListener('error', function(messageEvent) { console.error("Error loading CACKey PNaCl Module: " + messageEvent.data); }, true);
-	elementEmbed.addEventListener('load', cackeyInitLoaded, true);
-	elementEmbed.addEventListener('message', cackeyMessageIncoming, true);
-
-	cackeyHandle = elementEmbed;
-
-	document.body.appendChild(cackeyHandle)
-
-	console.log("[cackey] cackeyInit(): Completed.  Returning.");
 }
 
 /* Initialize CACKey */
+cackeyAppInit();
 cackeyInit();
