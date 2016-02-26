@@ -30,12 +30,12 @@ $(error "Please set NACL_SDK_ROOT")
 endif
 export NACL_SDK_ROOT
 
-all: cackey.crx
+all: cackey.zip
 
-cackey.crx: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png icon.png
-	rm -f cackey.crx
-	zip cackey.crx.new $^
-	mv cackey.crx.new cackey.crx
+cackey.zip: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png icon.png
+	rm -f cackey.zip
+	zip cackey.zip.new $^
+	mv cackey.zip.new cackey.zip
 
 cackey.bc: cackey-chrome.o cackey-chrome-init.o lib/libcackey.a lib/libpcsc.a lib/libz.a
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o cackey.bc.new cackey-chrome.o cackey-chrome-init.o $(LIBS)
@@ -93,7 +93,7 @@ cackey-chrome-init.o: cackey-chrome-init.cc cackey-chrome.h include/PCSC/pcsc-na
 clean:
 	rm -f cackey-chrome.o cackey-chrome-init.o
 	rm -f cackey.pexe cackey.bc
-	rm -f cackey.crx cackey.nmf
+	rm -f cackey.zip cackey.nmf
 	rm -f test
 
 distclean: clean
