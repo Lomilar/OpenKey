@@ -3374,7 +3374,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
 
 	if (status_ret == SCARD_E_INVALID_HANDLE) {
-		CACKEY_DEBUG_PRINTF("SCardStatus() returned SCARD_E_INVALID_HANDLE, marking is not already connected and trying again");
+		CACKEY_DEBUG_PRINTF("SCardStatus() returned SCARD_E_INVALID_HANDLE, marking as not already connected and trying again");
 		cackey_mark_slot_reset(slot);
 
 		pcsc_connect_ret = cackey_connect_card(slot);
