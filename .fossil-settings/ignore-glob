@@ -25,11 +25,11 @@ build/chrome/archive
 build/chrome/workdir-*
 build/chrome/lib
 build/chrome/include
-build/chrome/cackey-chrome.o
-build/chrome/cackey-chrome-init.o
+build/chrome/cackey-chrome-pkcs11.o
+build/chrome/cackey-chrome-plugin.o
 build/chrome/cackey.pexe
 build/chrome/cackey.bc
 build/chrome/cackey.nmf
-build/chrome/cackey.crx
+build/chrome/cackey.zip
 build/chrome/test
 build/chrome/google-pcsc.js
