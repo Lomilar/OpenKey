@@ -37,8 +37,8 @@ cackey.zip: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc
 	zip cackey.zip.new $^
 	mv cackey.zip.new cackey.zip
 
-cackey.bc: cackey-chrome.o cackey-chrome-init.o lib/libcackey.a lib/libpcsc.a lib/libz.a
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o cackey.bc.new cackey-chrome.o cackey-chrome-init.o $(LIBS)
+cackey.bc: cackey-chrome-pkcs11.o cackey-chrome-plugin.o lib/libcackey.a lib/libpcsc.a lib/libz.a
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o cackey.bc.new cackey-chrome-pkcs11.o cackey-chrome-plugin.o $(LIBS)
 	mv cackey.bc.new cackey.bc
 
 cackey.pexe: cackey.bc
@@ -84,14 +84,14 @@ include/PCSC/pcsc-nacl.h: lib/libcackey.a
 	touch include/PCSC/pcsc-nacl.h.new
 	mv include/PCSC/pcsc-nacl.h.new include/PCSC/pcsc-nacl.h
 
-test: cackey-chrome.c cackey-chrome-test.c ../../cackey.c Makefile
-	gcc -g3 -ggdb3 -Wall -I. -I../../pkcs11 -I/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/include -I/opt/appfs/rkeene.org/pcsc-lite/platform/latest/include/PCSC -DHAVE_WINTYPES_H=1 -DHAVE_PCSCLITE_H=1 -DHAVE_WINSCARD_H=1 -DHAVE_STDINT_H=1 -DHAVE_INTTYPES_H=1 -DHAVE_STDLIB_H=1 -DHAVE_UNISTD_H=1 -DHAVE_STRING_H=1 -DHAVE_PTHREAD_H=1 -DHAVE_LIMITS_H=1 -DHAVE_STDIO_H=1 -DHAVE_ZLIB_H -DHAVE_LIBZ -DCACKEY_DEBUG=1 -o test cackey-chrome.c cackey-chrome-test.c ../../cackey.c -L/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -lz -L/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -lpcsclite -L/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -lc -lpthread -Wl,-R,/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -Wl,-R,/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -Wl,-R,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -Wl,-dynamic-linker,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib/ld-linux-x86-64.so.2
+test: cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c Makefile
+	gcc -g3 -ggdb3 -Wall -I. -I../../pkcs11 -I/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/include -I/opt/appfs/rkeene.org/pcsc-lite/platform/latest/include/PCSC -DHAVE_WINTYPES_H=1 -DHAVE_PCSCLITE_H=1 -DHAVE_WINSCARD_H=1 -DHAVE_STDINT_H=1 -DHAVE_INTTYPES_H=1 -DHAVE_STDLIB_H=1 -DHAVE_UNISTD_H=1 -DHAVE_STRING_H=1 -DHAVE_PTHREAD_H=1 -DHAVE_LIMITS_H=1 -DHAVE_STDIO_H=1 -DHAVE_ZLIB_H -DHAVE_LIBZ -DCACKEY_DEBUG=1 -o test cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c -L/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -lz -L/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -lpcsclite -L/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -lc -lpthread -Wl,-R,/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -Wl,-R,/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -Wl,-R,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -Wl,-dynamic-linker,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib/ld-linux-x86-64.so.2
 
-cackey-chrome.o: cackey-chrome.c cackey-chrome.h
-cackey-chrome-init.o: cackey-chrome-init.cc cackey-chrome.h include/PCSC/pcsc-nacl.h
+cackey-chrome-pkcs11.o: cackey-chrome-pkcs11.c cackey-chrome.h
+cackey-chrome-plugin.o: cackey-chrome-plugin.cc cackey-chrome.h include/PCSC/pcsc-nacl.h
 
 clean:
-	rm -f cackey-chrome.o cackey-chrome-init.o
+	rm -f cackey-chrome-pkcs11.o cackey-chrome-plugin.o
 	rm -f cackey.pexe cackey.bc
 	rm -f cackey.zip cackey.nmf
 	rm -f test
