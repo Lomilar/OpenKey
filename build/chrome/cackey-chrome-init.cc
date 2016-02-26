@@ -41,7 +41,6 @@ class CACKeyInstance : public pp::Instance {
 			pp::VarArray certificatesPPArray;
 			pp::VarArrayBuffer *certificateContents, *incomingCertificateContents, *incomingData, *outgoingData;
 			pp::Var command;
-			const pp::Var *outgoingDataAsVar = NULL;
 			int numCertificates, i;
 			unsigned long outgoingDataLength;
 
@@ -130,12 +129,10 @@ class CACKeyInstance : public pp::Instance {
 
 							outgoingData->Unmap();
 
-							outgoingDataAsVar = new pp::Var(outgoingData->pp_var());
+							reply->Set("status", "success");
+							reply->Set("signedData", *outgoingData);
 
 							delete outgoingData;
-
-							reply->Set("status", "success");
-							reply->Set("signedData", outgoingDataAsVar);
 
 							break;
 						case CACKEY_CHROME_ERROR:
@@ -183,10 +180,6 @@ class CACKeyInstance : public pp::Instance {
 			delete message;
 
 			delete messagePlain;
-
-			if (outgoingDataAsVar) {
-				delete outgoingDataAsVar;
-			}
 
 			return;
 		}
