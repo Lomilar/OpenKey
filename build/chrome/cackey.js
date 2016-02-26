@@ -114,7 +114,7 @@ function cackeyMessageIncoming(messageEvent) {
 		return;
 	}
 
-	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+	if (GoogleSmartCard.IS_DEBUG_BUILD) {
 		console.log("START MESSAGE");
 		console.log(messageEvent.data);
 		console.log("END MESSAGE");
@@ -125,8 +125,10 @@ function cackeyMessageIncoming(messageEvent) {
 	 * request then forget any PIN associated with that certificate
 	 */
 	if (messageEvent.data.status != "success") {
-		if (messageEvent.data.originalrequest.certificate) {
-			delete cackeyCertificateToPINMap[cackeyCertificateToPINID(messageEvent.data.originalrequest.certificate)];
+		if (messageEvent.data.originalrequest) {
+			if (messageEvent.data.originalrequest.certificate) {
+				delete cackeyCertificateToPINMap[cackeyCertificateToPINID(messageEvent.data.originalrequest.certificate)];
+			}
 		}
 	}
 
@@ -215,7 +217,7 @@ function cackeyMessageIncoming(messageEvent) {
 						tmpMessageEvent = cackeyMessagesToRetry[messageIdx];
 
 						if (pinWindowPINValue == "") {
-							if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+							if (GoogleSmartCard.IS_DEBUG_BUILD) {
 								console.log("[cackey] The PIN dialog was closed without gathering a PIN, treating it as a failure.");
 							}
 
@@ -292,7 +294,7 @@ function cackeyMessageIncoming(messageEvent) {
 function cackeyListCertificates(chromeCallback) {
 	var callbackId;
 
-	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+	if (GoogleSmartCard.IS_DEBUG_BUILD) {
 		console.log("[cackey] Asked to provide a list of certificates -- throwing that request over to the NaCl side... ");
 	}
 
@@ -309,7 +311,7 @@ function cackeyListCertificates(chromeCallback) {
 	cackeyOutstandingCallbackCounter = callbackId;
 	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
-	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+	if (GoogleSmartCard.IS_DEBUG_BUILD) {
 		console.log("[cackey] Thrown.");
 	}
 
@@ -352,7 +354,7 @@ function cackeySignMessage(signRequest, chromeCallback) {
 
 	delete digestHeader;
 
-	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+	if (GoogleSmartCard.IS_DEBUG_BUILD) {
 		console.log("[cackey] Asked to sign a message -- throwing that request over to the NaCl side... ");
 	}
 
@@ -377,7 +379,7 @@ function cackeySignMessage(signRequest, chromeCallback) {
 	cackeyOutstandingCallbackCounter = callbackId;
 	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
-	if (!GoogleSmartCard.IS_DEBUG_BUILD) {
+	if (GoogleSmartCard.IS_DEBUG_BUILD) {
 		console.log("[cackey] Thrown.");
 	}
 
