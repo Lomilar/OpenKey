@@ -3357,6 +3357,7 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 	DWORD reader_len = 0, state = 0, protocol = 0, atr_len;
 	BYTE atr[MAX_ATR_SIZE];
 	LONG status_ret, scard_reconn_ret;
+	LPSTR *reader_name;
 
 	CACKEY_DEBUG_PRINTF("Called.");
 
@@ -3377,6 +3378,19 @@ static cackey_ret cackey_token_present(struct cackey_slot *slot) {
 
 	atr_len = sizeof(atr);
 	status_ret = SCardStatus(slot->pcsc_card, NULL, &reader_len, &state, &protocol, atr, &atr_len);
+ 
+	if (status_ret == SCARD_E_INSUFFICIENT_BUFFER) {
+		CACKEY_DEBUG_PRINTF("ScardStatus() returned SCARD_E_INSUFFICIENT_BUFFER, assuming this is a bug (e.g., Google PCSC) implementation and retrying");
+
+		atr_len = sizeof(atr);
+
+		reader_len = 32768;
+		reader_name = malloc(reader_len);
+
+		status_ret = SCardStatus(slot->pcsc_card, reader_name, &reader_len, &state, &protocol, atr, &atr_len);
+
+		free(reader_name);
+	}
 
 	if (status_ret == SCARD_E_INVALID_HANDLE) {
 		CACKEY_DEBUG_PRINTF("SCardStatus() returned SCARD_E_INVALID_HANDLE, marking as not already connected and trying again");
