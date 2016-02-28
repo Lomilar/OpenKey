@@ -143,6 +143,14 @@ function cackeyMessageIncoming(messageEvent) {
 		}
 	}
 
+	if (messageEvent.data.command == "init" && messageEvent.data.status == "success") {
+		if (GoogleSmartCard.IS_DEBUG_BUILD) {
+			console.log("[cackey] Initialization completed, resending any queued messages");
+		}
+
+		cackeyInitPCSCCompleted();
+	}
+
 	if (messageEvent.data.id == null) {
 		return;
 	}
@@ -670,6 +678,12 @@ function cackeyAppInit() {
 				"height": 135,
 				"minHeight": 135
 			}
+		}, function(uiWindow) {
+			if (!uiWindow) {
+				return;
+			}
+
+			uiWindow.contentWindow.parentWindow = window;
 		});
 	});
 
@@ -691,8 +705,6 @@ function cackeyAppInit() {
 	oldPCSCInitializationCallback = GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_;
 	GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_ = function(requestId, instanceId, instance, error) {
 		oldPCSCInitializationCallback.apply(this, [requestId, instanceId, instance, error]);
-
-		cackeyInitPCSCCompleted();
 
 		return;
 	};
