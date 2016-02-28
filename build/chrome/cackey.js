@@ -13,6 +13,7 @@ function onCertificatesRejected(rejectedCerts) {
  */
 var cackeyHandle = null;
 var cackeyPCSCHandle = null;
+var cackeyPCSCHandleUsable = false;
 
 /*
  * Handle and ID for outstanding callbacks
@@ -35,6 +36,11 @@ var cackeyMessagesToRetry = [];
  * Stored PIN for a given certificate
  */
 var cackeyCertificateToPINMap = {};
+
+/*
+ * Callbacks to perform after PCSC comes online
+ */
+cackeyCallbackAfterInit = []
 
 /*
  * Compute a text-based handle for a certificate to be hashed by
@@ -69,7 +75,7 @@ function cackeyMessageIncomingListCertificates(message, chromeCallback) {
 		certificates.push(
 			{
 				certificate: message.certificates[idx],
-				supportedHashes: ['SHA1', 'SHA256']
+				supportedHashes: ['SHA1', 'SHA256', 'MD5_SHA1']
 			}
 		);
 	}
@@ -87,6 +93,8 @@ function cackeyMessageIncomingListCertificates(message, chromeCallback) {
 			return;
 		}
 	);
+
+	return;
 }
 
 /*
@@ -98,6 +106,8 @@ function cackeyMessageIncomingSignMessage(message, chromeCallback) {
 	payload = message.signedData;
 
 	chromeCallback(payload);
+
+	return;
 }
 
 /*
@@ -231,7 +241,9 @@ function cackeyMessageIncoming(messageEvent) {
 
 							cackeyCertificateToPINMap[cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate)] = pinWindowPINValue;
 
-							cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
+							cackeyInitPCSC(function() {
+								cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
+							});
 						}
 					}
 
@@ -301,20 +313,22 @@ function cackeyListCertificates(chromeCallback) {
 
 	callbackId = cackeyOutstandingCallbackCounter + 1;
 
-	cackeyHandle.postMessage(
-		{
-			'target': "cackey",
-			'command': "listcertificates",
-			'id': callbackId
+	cackeyInitPCSC(function() {
+		cackeyHandle.postMessage(
+			{
+				'target': "cackey",
+				'command': "listcertificates",
+				'id': callbackId
+			}
+		);
+
+		cackeyOutstandingCallbackCounter = callbackId;
+		cackeyOutstandingCallbacks[callbackId] = chromeCallback;
+
+		if (GoogleSmartCard.IS_DEBUG_BUILD) {
+			console.log("[cackey] Thrown.");
 		}
-	);
-
-	cackeyOutstandingCallbackCounter = callbackId;
-	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
-
-	if (GoogleSmartCard.IS_DEBUG_BUILD) {
-		console.log("[cackey] Thrown.");
-	}
+	});
 
 	return;
 }
@@ -375,14 +389,37 @@ function cackeySignMessage(signRequest, chromeCallback) {
 		command.pin = cackeyCertificateToPINMap[certificateId];
 	}
 
-	cackeyHandle.postMessage(command);
+	cackeyInitPCSC(function() {
+		cackeyHandle.postMessage(command);
 
-	cackeyOutstandingCallbackCounter = callbackId;
-	cackeyOutstandingCallbacks[callbackId] = chromeCallback;
+		cackeyOutstandingCallbackCounter = callbackId;
+		cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
-	if (GoogleSmartCard.IS_DEBUG_BUILD) {
-		console.log("[cackey] Thrown.");
+		if (GoogleSmartCard.IS_DEBUG_BUILD) {
+			console.log("[cackey] Thrown.");
+		}
+	});
+
+	return;
+}
+
+/*
+ * Unititalizes the CACKey PCSC connection
+ */
+function cackeyUninitPCSC() {
+	console.log("[cackey] cackeyUninitPCSC() called");
+
+	if (cackeyPCSCHandle != null) {
+		console.log("[cackey] Deleting PCSC handle");
+
+		delete cackeyPCSCHandle;
+
+		cackeyPCSCHandle = null;
 	}
+
+	cackeyPCSCHandleUsable = false;
+
+	console.log("[cackey] cackeyUninitPCSC() returning");
 
 	return;
 }
@@ -391,18 +428,20 @@ function cackeySignMessage(signRequest, chromeCallback) {
  * Uninitializes CACKey (probably due to a crash)
  */
 function cackeyUninit() {
+	console.log("[cackey] cackeyUninit() called");
+
 	if (chrome.certificateProvider) {
+		console.log("[cackey] Unregistered Chrome certificate handlers");
+
 		chrome.certificateProvider.onCertificatesRequested.removeListener(cackeyListCertificates);
 		chrome.certificateProvider.onSignDigestRequested.removeListener(cackeySignMessage);
 	}
 
-	if (cackeyPCSCHandle != null) {
-		delete cackeyPCSCHandle;
-
-		cackeyPCSCHandle = null;
-	}
+	cackeyUninitPCSC();
 
 	if (cackeyHandle != null) {
+		console.log("[cackey] Deleting PNaCl module");
+
 		try {
 			document.body.removeChild(cackeyHandle);
 		} catch (e) { }
@@ -411,6 +450,10 @@ function cackeyUninit() {
 
 		cackeyHandle = null;
 	}
+
+	console.log("[cackey] cackeyUninit() complete");
+
+	return;
 }
 
 /*
@@ -419,6 +462,8 @@ function cackeyUninit() {
 function cackeyRestart() {
 	cackeyUninit();
 	cackeyInit();
+
+	return;
 }
 
 /*
@@ -430,18 +475,71 @@ function cackeyCrash() {
 	 * not working.
 	 */
 	setTimeout(cackeyRestart, 30000);
+
+	return;
+}
+
+function cackeyInitPCSCCompleted() {
+	var idx;
+
+	cackeyPCSCHandleUsable = true;
+
+	for (idx = 0; idx < cackeyCallbackAfterInit.length; idx++) {
+		if (!cackeyCallbackAfterInit[idx]) {
+			continue;
+		}
+
+		cackeyCallbackAfterInit[idx]();
+	}
+
+	delete cackeyCallbackAfterInit;
+
+	cackeyCallbackAfterInit = [];
+
+	return;
 }
 
 /*
- * Finish performing initialization that must wait until we have loaded the CACKey module
+ * Initialize the PCSC connection
  */
-function cackeyInitLoaded(messageEvent) {
-	console.log("[cackey] Loaded CACKey PNaCl Module");
+function cackeyInitPCSC(callbackAfterInit) {
+	/*
+	 * Start the Google PCSC Interface
+	 */
 
-	/* Register listeners with Chrome */
-	if (chrome.certificateProvider) {
-		chrome.certificateProvider.onCertificatesRequested.addListener(cackeyListCertificates);
-		chrome.certificateProvider.onSignDigestRequested.addListener(cackeySignMessage);
+	console.log("[cackey] cackeyInitPCSC() called");
+
+	/*
+	 * Queue this callback to be completed when initialization is complete
+	 */
+	if (callbackAfterInit) {
+		cackeyCallbackAfterInit.push(callbackAfterInit);
+	}
+
+	/*
+	 * No additional work is required
+	 */
+
+	if (cackeyPCSCHandle) {
+		console.log("[cackey] PCSC handle is already valid, nothing to do.");
+
+		if (cackeyPCSCHandleUsable) {
+			cackeyInitPCSCCompleted();
+		}
+
+		return;
+	}
+
+	/*
+	 * Sanely initialize this
+	 */
+	cackeyPCSCHandleUsable = false;
+
+	/*
+	 * Initialize the CACKey PNaCl module if needed
+	 */
+	if (cackeyHandle == null) {
+		cackeyInit();
 	}
 
 	/*
@@ -456,9 +554,28 @@ function cackeyInitLoaded(messageEvent) {
 	);
 
 	/*
-	 * Start the Google PCSC Interface
+	 * Initialize the PCSC NaCl interface
 	 */
 	cackeyPCSCHandle = new GoogleSmartCard.PcscNacl(cackeyHandle);
+
+	console.log("[cackey] cackeyInitPCSC() complete");
+
+	return;
+}
+
+/*
+ * Finish performing initialization that must wait until we have loaded the CACKey module
+ */
+function cackeyInitLoaded(messageEvent) {
+	console.log("[cackey] Loaded CACKey PNaCl Module");
+
+	/* Register listeners with Chrome */
+	if (chrome.certificateProvider) {
+		console.log("[cackey] Registered Certificate handlers with Chrome");
+
+		chrome.certificateProvider.onCertificatesRequested.addListener(cackeyListCertificates);
+		chrome.certificateProvider.onSignDigestRequested.addListener(cackeySignMessage);
+	}
 
 	return;
 }
@@ -515,12 +632,17 @@ function cackeyInit() {
 	forceLoadElement = cackeyHandle.offsetTop;
 
 	console.log("[cackey] cackeyInit(): Completed.  Returning.");
+
+	return;
 }
 
 /*
  * Initialize the CACKey Chrome Application
  */
 function cackeyAppInit() {
+	var oldOnPortDisconnectedFunction;
+	var oldPCSCInitializationCallback;
+
 	/*
 	 * Create a handler for starting the application UI
 	 */
@@ -536,6 +658,32 @@ function cackeyAppInit() {
 			}
 		});
 	});
+
+	/*
+	 * Register a handler for dealing with the PCSC port being disconnected
+	 */
+	oldOnPortDisconnectedFunction = GoogleSmartCard.Pcsc.prototype.onPortDisconnected_;
+	GoogleSmartCard.Pcsc.prototype.onPortDisconnected_ = function() {
+		oldOnPortDisconnectedFunction.apply(this);
+
+		cackeyRestart();
+
+		return;
+	};
+
+	/*
+	 * Register a handler for dealing with the PCSC port being available
+	 */
+	oldPCSCInitializationCallback = GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_;
+	GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_ = function(requestId, instanceId, instance, error) {
+		oldPCSCInitializationCallback.apply(this, [requestId, instanceId, instance, error]);
+
+		cackeyInitPCSCCompleted();
+
+		return;
+	};
+
+	return;
 }
 
 /* Initialize CACKey */
