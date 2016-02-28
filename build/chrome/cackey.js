@@ -40,7 +40,7 @@ var cackeyCertificateToPINMap = {};
 /*
  * Callbacks to perform after PCSC comes online
  */
-cackeyCallbackAfterInit = []
+cackeyCallbackAfterInit = [];
 
 /*
  * Compute a text-based handle for a certificate to be hashed by
@@ -466,15 +466,29 @@ function cackeyRestart() {
 	return;
 }
 
+function cackeyInitGlobalState() {
+	cackeyOutstandingCallbacks = {};
+};
+
 /*
  * Handle a CACKey crash (probably due to loss of connectivity to the PCSC daemon)
  */
 function cackeyCrash() {
 	/*
+	 * De-initialize CACKey
+	 */
+	cackeyUninit();
+
+	/*
+	 * Reinitialize global state
+	 */
+	cackeyInitGlobalState();
+
+	/*
 	 * Schedule the restart to occur in 30 seconds in case we really are
 	 * not working.
 	 */
-	setTimeout(cackeyRestart, 30000);
+	setTimeout(cackeyInit, 30000);
 
 	return;
 }
@@ -682,6 +696,11 @@ function cackeyAppInit() {
 
 		return;
 	};
+
+	/*
+	 * Initialize global state
+	 */
+	cackeyInitGlobalState();
 
 	return;
 }
