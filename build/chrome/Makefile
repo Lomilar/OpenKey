@@ -32,7 +32,7 @@ export NACL_SDK_ROOT
 
 all: cackey.zip
 
-cackey.zip: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png icon.png ui.html
+cackey.zip: $(CACKEY_EXECUTABLES) cackey.nmf manifest.json cackey.js google-pcsc.js pin.html pin.js pin-icon.png icon.png ui.html ui.js jsrsasign.js
 	rm -f cackey.zip
 	zip cackey.zip.new $^
 	mv cackey.zip.new cackey.zip
@@ -89,6 +89,11 @@ manifest.json: manifest.json.in ../../configure.ac
 	sed 's/@PACKAGE_VERSION@/$(shell sed '/^AC_INIT/ {s@.*, @@;s@[^0-9\.].@@g;p};d' ../../configure.ac)/g' manifest.json.in > manifest.json.new
 	mv manifest.json.new manifest.json
 
+jsrsasign.js:
+	wget --no-check-certificate -O jsrsasign.js.new 'https://github.com/kjur/jsrsasign/raw/2989e2cdc29219f5fb1743dffd9cee93b7090832/jsrsasign-latest-all-min.js'
+	test "`openssl sha256 jsrsasign.js.new | sed 's@.*= *@@'`" = '99b041bccc846f03623ce52f5932bd3ff282a064e7077a4ad1c600fc70c1176b'
+	mv jsrsasign.js.new jsrsasign.js
+
 test: cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c Makefile
 	gcc -g3 -ggdb3 -Wall -I. -I../../pkcs11 -I/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/include -I/opt/appfs/rkeene.org/pcsc-lite/platform/latest/include/PCSC -DHAVE_WINTYPES_H=1 -DHAVE_PCSCLITE_H=1 -DHAVE_WINSCARD_H=1 -DHAVE_STDINT_H=1 -DHAVE_INTTYPES_H=1 -DHAVE_STDLIB_H=1 -DHAVE_UNISTD_H=1 -DHAVE_STRING_H=1 -DHAVE_PTHREAD_H=1 -DHAVE_LIMITS_H=1 -DHAVE_STDIO_H=1 -DHAVE_ZLIB_H -DHAVE_LIBZ -DCACKEY_DEBUG=1 -o test cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c -L/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -lz -L/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -lpcsclite -L/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -lc -lpthread -Wl,-R,/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -Wl,-R,/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -Wl,-R,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -Wl,-dynamic-linker,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib/ld-linux-x86-64.so.2
 
@@ -110,5 +115,6 @@ distclean: clean
 	-rmdir include
 	rm -f google-pcsc.js
 	rm -rf workdir-*
+	rm -f jsrsasign.js jsrsasign.js.new
 
 .PHONY: all clean distclean
