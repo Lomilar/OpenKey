@@ -148,7 +148,7 @@ function cackeyMessageIncoming(messageEvent) {
 			console.log("[cackey] Initialization completed, resending any queued messages");
 		}
 
-		cackeyInitPCSCCompleted();
+		cackeyInitPCSCCompleted("success");
 	}
 
 	if (messageEvent.data.id == null) {
@@ -227,6 +227,7 @@ function cackeyMessageIncoming(messageEvent) {
 				 */
 				pinWindow.onClosed.addListener(function() {
 					var messageIdx;
+					var chromeCallback;
 
 					pinWindowPreviousHandle = null;
 
@@ -249,8 +250,23 @@ function cackeyMessageIncoming(messageEvent) {
 
 							cackeyCertificateToPINMap[cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate)] = pinWindowPINValue;
 
+							chromeCallback = null;
+							if (tmpMessageEvent.data.id) {
+								if (cackeyOutstandingCallbacks) {
+									chromeCallback = cackeyOutstandingCallbacks[tmpMessageEvent.data.id];
+								}
+							}
+
 							cackeyInitPCSC(function() {
 								cackeyHandle.postMessage(tmpMessageEvent.data.originalrequest);
+							}, function() {
+								if (chromeCallback) {
+									chromeCallback();
+								}
+
+								if (tmpMessageEvent.data.id && cackeyOutstandingCallbacks[tmpMessageEvent.data.id]) {
+									delete cackeyOutstandingCallbacks[tmpMessageEvent.data.id];
+								}
 							});
 						}
 					}
@@ -336,7 +352,7 @@ function cackeyListCertificates(chromeCallback) {
 		if (GoogleSmartCard.IS_DEBUG_BUILD) {
 			console.log("[cackey] Thrown.");
 		}
-	});
+	}, chromeCallback);
 
 	return;
 }
@@ -406,7 +422,7 @@ function cackeySignMessage(signRequest, chromeCallback) {
 		if (GoogleSmartCard.IS_DEBUG_BUILD) {
 			console.log("[cackey] Thrown.");
 		}
-	});
+	}, chromeCallback);
 
 	return;
 }
@@ -501,22 +517,44 @@ function cackeyCrash() {
 	return;
 }
 
-function cackeyInitPCSCCompleted() {
+function cackeyInitPCSCCompleted(state) {
 	var idx;
 
-	cackeyPCSCHandleUsable = true;
+	console.log("[cackey] Connection completed (state = \"" + state + "\"), sending queued events: " + cackeyCallbackAfterInit.length);
+
+	switch (state) {
+		case "success":
+			cackeyPCSCHandleUsable = true;
+
+			break;
+		case "failure":
+			cackeyPCSCHandleUsable = false;
+
+			break;
+	}
 
 	for (idx = 0; idx < cackeyCallbackAfterInit.length; idx++) {
 		if (!cackeyCallbackAfterInit[idx]) {
 			continue;
 		}
 
-		cackeyCallbackAfterInit[idx]();
+		switch (state) {
+			case "success":
+				(cackeyCallbackAfterInit[idx].successCallback)();
+
+				break;
+			case "failure":
+				(cackeyCallbackAfterInit[idx].failureCallback)();
+
+				break;
+		}
 	}
 
 	delete cackeyCallbackAfterInit;
 
 	cackeyCallbackAfterInit = [];
+
+	console.log("[cackey] All queued events processed");
 
 	return;
 }
@@ -524,7 +562,7 @@ function cackeyInitPCSCCompleted() {
 /*
  * Initialize the PCSC connection
  */
-function cackeyInitPCSC(callbackAfterInit) {
+function cackeyInitPCSC(callbackAfterInit, callbackInitFailed) {
 	/*
 	 * Start the Google PCSC Interface
 	 */
@@ -535,7 +573,7 @@ function cackeyInitPCSC(callbackAfterInit) {
 	 * Queue this callback to be completed when initialization is complete
 	 */
 	if (callbackAfterInit) {
-		cackeyCallbackAfterInit.push(callbackAfterInit);
+		cackeyCallbackAfterInit.push({"successCallback": callbackAfterInit, "failureCallback": callbackInitFailed});
 	}
 
 	/*
@@ -546,7 +584,7 @@ function cackeyInitPCSC(callbackAfterInit) {
 		console.log("[cackey] PCSC handle is already valid, nothing to do.");
 
 		if (cackeyPCSCHandleUsable) {
-			cackeyInitPCSCCompleted();
+			cackeyInitPCSCCompleted("success");
 		}
 
 		return;
@@ -693,6 +731,8 @@ function cackeyAppInit() {
 	oldOnPortDisconnectedFunction = GoogleSmartCard.Pcsc.prototype.onPortDisconnected_;
 	GoogleSmartCard.Pcsc.prototype.onPortDisconnected_ = function() {
 		oldOnPortDisconnectedFunction.apply(this);
+
+		cackeyInitPCSCCompleted("failure");
 
 		cackeyRestart();
 

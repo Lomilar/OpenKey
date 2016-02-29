@@ -46,6 +46,14 @@ function updateCertificates(htmlObject) {
 	}
 
 	parentWindow.cackeyListCertificates(function(certs) {
+		/*
+		 * If there is an error then we are invoked with no certs
+		 * parameter at all, fake one.
+		 */
+		if (!certs) {
+			certs = [];
+		}
+
 		globalCerts = certs;
 
 		displayCerts(htmlObject, certs);
