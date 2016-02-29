@@ -6,13 +6,6 @@
 
 	"description": "US Department of Defense Common Access Card (CAC) and US NIST SP 800-73 Personal Identity Verification (PIV) card support.",
 
-	"import": [
-		{
-			"id": "khpfeaanjngmcnplbdlpegiifgpfgdco"
-		}
-	],
-
-
 	"icons": {
 		"128": "icon.png"
 	},
