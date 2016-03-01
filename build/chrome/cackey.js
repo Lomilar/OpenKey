@@ -662,11 +662,7 @@ function cackeyInit() {
 	/* Verify that we can register callbacks */
 	if (!chrome.certificateProvider) {
 		if (!GoogleSmartCard.IS_DEBUG_BUILD) {
-			console.error("[cackey] This extension only works on ChromeOS!");
-
-			return;
-		} else {
-			console.log("[cackey] This extension only works on ChromeOS, but you appear to be debugging it -- trying anyway.");
+			console.info("[cackey] This extension's primary functionality only works on ChromeOS!  You won't be able to do much with it.");
 		}
 	}
 
