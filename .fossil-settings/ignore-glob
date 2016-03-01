@@ -35,3 +35,4 @@ build/chrome/test
 build/chrome/google-pcsc.js
 build/chrome/manifest.json
 build/chrome/jsrsasign.js
+build/chrome/extra/*.png
