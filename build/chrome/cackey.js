@@ -36,6 +36,7 @@ var cackeyMessagesToRetry = [];
  * Stored PIN for a given certificate
  */
 var cackeyCertificateToPINMap = {};
+var cackeyCertificateToPINMapLastUsedRunner = false;
 
 /*
  * Callbacks to perform after PCSC comes online
@@ -108,6 +109,53 @@ function cackeyMessageIncomingSignMessage(message, chromeCallback) {
 	chromeCallback(payload);
 
 	return;
+}
+
+/*
+ * Update the time a PIN was last used for a certificate
+ */
+function cackeyCertificateToPINMapUpdateLastUsed(id) {
+	if (id != null) {
+		cackeyCertificateToPINMap[id].lastUsed = (new Date()).getTime();
+	}
+
+	if (!cackeyCertificateToPINMapLastUsedRunner) {
+		cackeyCertificateToPINMapLastUsedRunner = true;
+
+		setTimeout(function() {
+			var currentTime;
+			var certificates, certificate;
+			var idx;
+
+			currentTime = (new Date()).getTime();
+
+			certificates = Object.keys(cackeyCertificateToPINMap);
+
+			console.log("Looking for PINs to clear");
+
+			for (idx = 0; idx < certificates.length; idx++) {
+				certificate = certificates[idx];
+
+				if ((cackeyCertificateToPINMap[certificate].lastUsed + 900000) > currentTime) {
+					continue;
+				}
+
+				console.log("Deleteting " + certificate);
+
+				delete cackeyCertificateToPINMap[certificate];
+			}
+
+			certificates = Object.keys(cackeyCertificateToPINMap);
+
+			cackeyCertificateToPINMapLastUsedRunner = false;
+
+			if (certificates.length == 0) {
+				return;
+			}
+
+			cackeyCertificateToPINMapUpdateLastUsed(null);
+		}, 900000);
+	}
 }
 
 /*
@@ -248,7 +296,10 @@ function cackeyMessageIncoming(messageEvent) {
 						} else {
 							tmpMessageEvent.data.originalrequest.pin = pinWindowPINValue;
 
-							cackeyCertificateToPINMap[cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate)] = pinWindowPINValue;
+							cackeyCertificateToPINMap[cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate)] = {}
+							cackeyCertificateToPINMap[cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate)].pin = pinWindowPINValue;
+
+							cackeyCertificateToPINMapUpdateLastUsed(cackeyCertificateToPINID(tmpMessageEvent.data.originalrequest.certificate));
 
 							chromeCallback = null;
 							if (tmpMessageEvent.data.id) {
@@ -409,8 +460,10 @@ function cackeySignMessage(signRequest, chromeCallback) {
 
 	certificateId = cackeyCertificateToPINID(command.certificate);
 
-	if (cackeyCertificateToPINMap[certificateId]) {
-		command.pin = cackeyCertificateToPINMap[certificateId];
+	if (cackeyCertificateToPINMap[certificateId] && cackeyCertificateToPINMap[certificateId].pin) {
+		command.pin = cackeyCertificateToPINMap[certificateId].pin;
+
+		cackeyCertificateToPINMapUpdateLastUsed(certificateId);
 	}
 
 	cackeyInitPCSC(function() {
