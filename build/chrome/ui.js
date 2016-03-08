@@ -62,6 +62,21 @@ function updateCertificates(htmlObject) {
 	return;
 }
 
+function updateCertificateProvider(htmlObject) {
+	var resultHTML;
+
+	if (chrome.certificateProvider) {
+		resultHTML = "Yes (ChromeOS)";
+	} else {
+		resultHTML = "<b>No, informational only.</b>";
+	}
+
+	htmlObject.innerHTML = resultHTML;
+
+	return;
+}
+
 setTimeout(function() {
 	updateCertificates(document.getElementById('certificates'));
+	updateCertificateProvider(document.getElementById('certificate_provider'));
 }, 1);
