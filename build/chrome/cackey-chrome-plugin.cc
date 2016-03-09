@@ -37,11 +37,12 @@ class CACKeyInstance : public pp::Instance {
 			const char *smartcardManagerAppId = NULL;
 			unsigned char buffer[8192];
 			struct cackey_certificate *certificates, incomingCertificateCACKey;
-			pp::VarDictionary *reply;
-			pp::VarArray certificatesPPArray;
+			struct cackey_reader *readers;
+			pp::VarDictionary *reply, *readerInfo;
+			pp::VarArray certificatesPPArray, readersPPArray;
 			pp::VarArrayBuffer *certificateContents, *incomingCertificateContents, *incomingData, *outgoingData;
 			pp::Var command;
-			int numCertificates, i;
+			int numCertificates, numReaders, i;
 			unsigned long outgoingDataLength;
 
 			/*
@@ -87,6 +88,26 @@ class CACKeyInstance : public pp::Instance {
 
 				reply->Set("status", "success");
 				reply->Set("certificates", certificatesPPArray);
+			} else if (command.AsString() == "listreaders") {
+				numReaders = cackey_chrome_listReaders(&readers);
+
+				readersPPArray.SetLength(numReaders);
+
+				for (i = 0; i < numReaders; i++) {
+					readerInfo = new pp::VarDictionary;
+
+					readerInfo->Set("readerName", readers[i].reader);
+					readerInfo->Set("cardInserted", readers[i].cardInserted);
+
+					readersPPArray.Set(i, *readerInfo);
+
+					delete readerInfo;
+				}
+
+				cackey_chrome_freeReaders(readers, numReaders);
+
+				reply->Set("status", "success");
+				reply->Set("readers", readersPPArray);
 			} else if (command.AsString() == "sign") {
 				if (!message->HasKey("certificate")) {
 					reply->Set("status", "error");

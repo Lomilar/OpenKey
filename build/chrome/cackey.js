@@ -72,6 +72,10 @@ function cackeyMessageIncomingListCertificates(message, chromeCallback) {
 	var idx;
 	var certificates = [];
 
+	if (!chromeCallback) {
+		return;
+	}
+
 	for (idx = 0; idx < message.certificates.length; idx++) {
 		certificates.push(
 			{
@@ -99,10 +103,27 @@ function cackeyMessageIncomingListCertificates(message, chromeCallback) {
 }
 
 /*
+ * Handle a response from the NaCl side regarding a list of readers
+ */
+function cackeyMessageIncomingListReaders(message, chromeCallback) {
+	if (!chromeCallback) {
+		return;
+	}
+
+	chromeCallback(message.readers);
+
+	return;
+}
+
+/*
  * Handle a response from the NaCl side regarding signing a message
  */
 function cackeyMessageIncomingSignMessage(message, chromeCallback) {
 	var payload;
+
+	if (!chromeCallback) {
+		return;
+	}
 
 	payload = message.signedData;
 
@@ -358,6 +379,10 @@ function cackeyMessageIncoming(messageEvent) {
 					nextFunction = cackeyMessageIncomingListCertificates;
 
 					break;
+				case "listreaders":
+					nextFunction = cackeyMessageIncomingListReaders;
+
+					break;
 				case "sign":
 					nextFunction = cackeyMessageIncomingSignMessage;
 
@@ -393,6 +418,38 @@ function cackeyListCertificates(chromeCallback) {
 			{
 				'target': "cackey",
 				'command': "listcertificates",
+				'id': callbackId
+			}
+		);
+
+		cackeyOutstandingCallbackCounter = callbackId;
+		cackeyOutstandingCallbacks[callbackId] = chromeCallback;
+
+		if (GoogleSmartCard.IS_DEBUG_BUILD) {
+			console.log("[cackey] Thrown.");
+		}
+	}, chromeCallback);
+
+	return;
+}
+
+/*
+ * Handler for messages from Chrome related to listing readers
+ */
+function cackeyListReaders(chromeCallback) {
+	var callbackId;
+
+	if (GoogleSmartCard.IS_DEBUG_BUILD) {
+		console.log("[cackey] Asked to provide a list of readers -- throwing that request over to the NaCl side... ");
+	}
+
+	callbackId = cackeyOutstandingCallbackCounter + 1;
+
+	cackeyInitPCSC(function() {
+		cackeyHandle.postMessage(
+			{
+				'target': "cackey",
+				'command': "listreaders",
 				'id': callbackId
 			}
 		);

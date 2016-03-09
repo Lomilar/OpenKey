@@ -2,6 +2,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -325,6 +326,73 @@ void cackey_chrome_freeCertificates(struct cackey_certificate *certificates, int
 	}
 
 	free(certificates);
+
+	return;
+}
+
+int cackey_chrome_listReaders(struct cackey_reader **readers) {
+	CK_RV chk_rv;
+	CK_ULONG numSlots, currSlot;
+	CK_SLOT_ID_PTR slots;
+	CK_SLOT_INFO slotInfo;
+
+	chk_rv = cackey_chrome_init();
+	if (chk_rv != CKR_OK) {
+		return(0);
+	}
+
+	chk_rv = moduleFunctionList->C_GetSlotList(FALSE, NULL, &numSlots);
+	if (chk_rv != CKR_OK) {
+		return(0);
+	}
+
+	slots = malloc(sizeof(*slots) * numSlots);
+
+	chk_rv = moduleFunctionList->C_GetSlotList(FALSE, slots, &numSlots);
+	if (chk_rv != CKR_OK) {
+		free(slots);
+
+		return(0);
+	}
+
+	*readers = malloc(sizeof(**readers) * numSlots);
+
+	for (currSlot = 0; currSlot < numSlots; currSlot++) {
+		chk_rv = moduleFunctionList->C_GetSlotInfo(slots[currSlot], &slotInfo);
+		if (chk_rv != CKR_OK) {
+			continue;
+		}
+
+		(*readers)[currSlot].reader = malloc(sizeof(slotInfo.slotDescription) + 1);
+		memcpy((*readers)[currSlot].reader, slotInfo.slotDescription, sizeof(slotInfo.slotDescription));
+		(*readers)[currSlot].reader[sizeof(slotInfo.slotDescription)] = '\0';
+
+		if ((slotInfo.flags & CKF_TOKEN_PRESENT) != CKF_TOKEN_PRESENT) {
+			(*readers)[currSlot].cardInserted = false;
+		} else {
+			(*readers)[currSlot].cardInserted = true;
+		}
+	}
+
+	free(slots);
+
+	return(numSlots);
+}
+
+void cackey_chrome_freeReaders(struct cackey_reader *readers, int readersCount) {
+	int idx;
+
+	if (readers == NULL) {
+		return;
+	}
+
+	for (idx = 0; idx < readersCount; idx++) {
+		if (readers[idx].reader) {
+			free(readers[idx].reader);
+		}
+	}
+
+	free(readers);
 
 	return;
 }
