@@ -87,6 +87,10 @@ function updateSmartcardReaders(htmlObject) {
 		var reader;
 		var resultHTML;
 
+		if (!readers) {
+			readers = [];
+		}
+
 		resultHTML = "Count: " + readers.length;
 
 		if (readers.length > 0) {
