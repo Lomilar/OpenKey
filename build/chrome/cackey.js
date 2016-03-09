@@ -411,7 +411,7 @@ function cackeyListCertificates(chromeCallback) {
 		console.log("[cackey] Asked to provide a list of certificates -- throwing that request over to the NaCl side... ");
 	}
 
-	callbackId = cackeyOutstandingCallbackCounter + 1;
+	callbackId = ++cackeyOutstandingCallbackCounter;
 
 	cackeyInitPCSC(function() {
 		cackeyHandle.postMessage(
@@ -422,7 +422,6 @@ function cackeyListCertificates(chromeCallback) {
 			}
 		);
 
-		cackeyOutstandingCallbackCounter = callbackId;
 		cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
 		if (GoogleSmartCard.IS_DEBUG_BUILD) {
@@ -443,7 +442,7 @@ function cackeyListReaders(chromeCallback) {
 		console.log("[cackey] Asked to provide a list of readers -- throwing that request over to the NaCl side... ");
 	}
 
-	callbackId = cackeyOutstandingCallbackCounter + 1;
+	callbackId = ++cackeyOutstandingCallbackCounter;
 
 	cackeyInitPCSC(function() {
 		cackeyHandle.postMessage(
@@ -454,7 +453,6 @@ function cackeyListReaders(chromeCallback) {
 			}
 		);
 
-		cackeyOutstandingCallbackCounter = callbackId;
 		cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
 		if (GoogleSmartCard.IS_DEBUG_BUILD) {
@@ -505,7 +503,7 @@ function cackeySignMessage(signRequest, chromeCallback) {
 		console.log("[cackey] Asked to sign a message -- throwing that request over to the NaCl side... ");
 	}
 
-	callbackId = cackeyOutstandingCallbackCounter + 1;
+	callbackId = ++cackeyOutstandingCallbackCounter;
 
 	command = {
 		'target': "cackey",
@@ -526,7 +524,6 @@ function cackeySignMessage(signRequest, chromeCallback) {
 	cackeyInitPCSC(function() {
 		cackeyHandle.postMessage(command);
 
-		cackeyOutstandingCallbackCounter = callbackId;
 		cackeyOutstandingCallbacks[callbackId] = chromeCallback;
 
 		if (GoogleSmartCard.IS_DEBUG_BUILD) {
