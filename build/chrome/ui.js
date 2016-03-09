@@ -35,7 +35,10 @@ function displayCerts(htmlObject, certs) {
 	delete certObj;
 
 	htmlObject.innerHTML = html;
+
+	return;
 }
+
 function updateCertificates(htmlObject) {
 	var html = "";
 
@@ -57,6 +60,8 @@ function updateCertificates(htmlObject) {
 		globalCerts = certs;
 
 		displayCerts(htmlObject, certs);
+
+		return;
 	});
 
 	return;
@@ -76,7 +81,41 @@ function updateCertificateProvider(htmlObject) {
 	return;
 }
 
+function updateSmartcardReaders(htmlObject) {
+	parentWindow.cackeyListReaders(function(readers) {
+		var idx;
+		var reader;
+		var resultHTML;
+
+		resultHTML = "Count: " + readers.length;
+
+		if (readers.length > 0) {
+			resultHTML += "<br>";
+
+			resultHTML += "<ol type=\"1\">";
+			for (idx = 0; idx < readers.length; idx++) {
+				reader = readers[idx];
+
+				resultHTML += "<li>" + reader.readerName.trim() + ", card inserted: " + (reader.cardInserted ? "yes" : "no") + "</li>";
+			}
+
+			resultHTML += "</ol>";
+		} else {
+			resultHTML += " (is the Smartcard Manager Application working?)";
+		}
+
+		htmlObject.innerHTML = resultHTML;
+
+		return;
+	});
+
+	return;
+}
+
 setTimeout(function() {
 	updateCertificates(document.getElementById('certificates'));
+	updateSmartcardReaders(document.getElementById('smartcard_readers'));
 	updateCertificateProvider(document.getElementById('certificate_provider'));
+
+	return;
 }, 1);
