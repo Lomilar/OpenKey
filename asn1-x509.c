@@ -158,9 +158,18 @@ static int asn1_x509_read_object(unsigned char *buf, size_t buflen, struct x509_
 
 	read_ret = asn1_x509_read_asn1_object(outbuf->certificate.contents, outbuf->certificate.size, &outbuf->version, &outbuf->serial_number, &outbuf->signature_algo, &outbuf->issuer, &outbuf->validity, &outbuf->subject, &outbuf->pubkeyinfo, NULL);
 	if (read_ret != 0) {
-		CACKEY_DEBUG_PRINTF("Failed at reading the certificate components from the certificate");
+		/* Try again without a version tag (X.509v1) */
+		outbuf->version.tag = 0;
+		outbuf->version.size = 0;
+		outbuf->version.contents = NULL;
+		outbuf->version.asn1rep_len = 0;
+		outbuf->version.asn1rep = NULL;
+		read_ret = asn1_x509_read_asn1_object(outbuf->certificate.contents, outbuf->certificate.size, &outbuf->serial_number, &outbuf->signature_algo, &outbuf->issuer, &outbuf->validity, &outbuf->subject, &outbuf->pubkeyinfo, NULL);
+		if (read_ret != 0) {
+			CACKEY_DEBUG_PRINTF("Failed at reading the certificate components from the certificate");
 
-		return(-1);
+			return(-1);
+		}
 	}
 
 	read_ret = asn1_x509_read_asn1_object(outbuf->pubkeyinfo.contents, outbuf->pubkeyinfo.size, &outbuf->pubkey_algoid, &outbuf->pubkey, NULL);
