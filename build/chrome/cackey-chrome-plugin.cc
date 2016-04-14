@@ -34,7 +34,6 @@ class CACKeyInstance : public pp::Instance {
 			cackey_chrome_returnType signRet;
 			char *pinPrompt = NULL;
 			const char *pin;
-			const char *smartcardManagerAppId = NULL;
 			unsigned char buffer[8192];
 			struct cackey_certificate *certificates, incomingCertificateCACKey;
 			struct cackey_reader *readers;
@@ -56,15 +55,7 @@ class CACKeyInstance : public pp::Instance {
 			reply = new pp::VarDictionary();
 
 			if (command.AsString() == "init") {
-				if (message->HasKey("smartcardManagerAppId")) {
-					smartcardManagerAppId = strdup(message->Get("smartcardManagerAppId").AsString().c_str());
-				}
-
-				pcscNaClInit(this, corePointer, smartcardManagerAppId, "CACKey");
-
-				if (smartcardManagerAppId) {
-					free((void *) smartcardManagerAppId);
-				}
+				pcscNaClInit(this, corePointer);
 
 				reply->Set("status", "success");
 			} else if (command.AsString() == "listcertificates") {

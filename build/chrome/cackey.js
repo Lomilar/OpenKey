@@ -718,16 +718,19 @@ function cackeyInitPCSC(callbackAfterInit, callbackInitFailed) {
 	cackeyHandle.postMessage(
 		{
 			"target": "cackey",
-			"command": "init",
-			"smartcardManagerAppId": "khpfeaanjngmcnplbdlpegiifgpfgdco"
+			"command": "init"
 		}
 	);
 
 	/*
 	 * Initialize the PCSC NaCl interface
 	 */
-	new GoogleSmartCard.NaclModule(cackeyHandle);
-	cackeyPCSCHandle = new GoogleSmartCard.PcscLiteClient.NaclClientBackend(cackeyHandle.messageChannel, "CACKey", "khpfeaanjngmcnplbdlpegiifgpfgdco"); 
+	cackeyPCSCHandle = new GoogleSmartCard.PcscLiteClient.NaclClientBackend(
+		null,
+		"CACKey",
+		"khpfeaanjngmcnplbdlpegiifgpfgdco",
+		cackeyHandle
+	); 
 
 	console.log("[cackey] cackeyInitPCSC() complete");
 
