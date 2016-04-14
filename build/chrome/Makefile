@@ -7,7 +7,7 @@ FINALIZE = pnacl-finalize
 CACKEY_LIBS = -Llib -lcackey -lz
 PCSC_LIBS   = -Llib -lpcsc -L${NACL_SDK_ROOT}/lib/pnacl/Release -lppapi -lppapi_cpp
 LIBS        = $(CACKEY_LIBS) $(PCSC_LIBS)
-CFLAGS      = -Wall -I${NACL_SDK_ROOT}/include -I../../pkcs11 -Iinclude/PCSC
+CFLAGS      = -Wall -I${NACL_SDK_ROOT}/include -I../../pkcs11 -Iinclude
 CXXFLAGS    = $(CFLAGS) -std=gnu++11
 
 CACKEY_DEBUG = 0
@@ -72,17 +72,15 @@ lib/libz.a: lib/libcackey.a
 
 google-pcsc.js: lib/libcackey.a
 	rm -f google-pcsc.js google-pcsc.js.new
-	cat workdir-*.inst/js/scope.js > google-pcsc.js.new
-	echo 'GoogleSmartCard.IS_DEBUG_BUILD = $(CACKEY_DEBUG);' >> google-pcsc.js.new
-	cat workdir-*.inst/js/{logging,pcsc,pcsc-nacl}.js >> google-pcsc.js.new
+	cat workdir-*.inst/js/libpcsc.js > google-pcsc.js.new
 	mv google-pcsc.js.new google-pcsc.js
 
-include/PCSC/pcsc-nacl.h: lib/libcackey.a
-	mkdir -p include/PCSC
-	rm -f include/PCSC/pcsc-nacl.h.new include/PCSC/pcsc-nacl.h
-	cd include/PCSC && ln -s ../../workdir-*.inst/include/PCSC/pcsc-nacl.h pcsc-nacl.h.new
-	touch include/PCSC/pcsc-nacl.h.new
-	mv include/PCSC/pcsc-nacl.h.new include/PCSC/pcsc-nacl.h
+include/libpcsc.h: lib/libcackey.a
+	mkdir -p include
+	rm -f include/libpcsc.h.new include/libpcsc.h
+	cd include && ln -s ../workdir-*.inst/include/libpcsc.h libpcsc.h.new
+	touch include/libpcsc.h.new
+	mv include/libpcsc.h.new include/libpcsc.h
 
 manifest.json: manifest.json.in ../../configure.ac
 	rm -f manifest.json.new
@@ -98,7 +96,7 @@ test: cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c Makefile
 	gcc -g3 -ggdb3 -Wall -I. -I../../pkcs11 -I/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/include -I/opt/appfs/rkeene.org/pcsc-lite/platform/latest/include/PCSC -DHAVE_WINTYPES_H=1 -DHAVE_PCSCLITE_H=1 -DHAVE_WINSCARD_H=1 -DHAVE_STDINT_H=1 -DHAVE_INTTYPES_H=1 -DHAVE_STDLIB_H=1 -DHAVE_UNISTD_H=1 -DHAVE_STRING_H=1 -DHAVE_PTHREAD_H=1 -DHAVE_LIMITS_H=1 -DHAVE_STDIO_H=1 -DHAVE_ZLIB_H -DHAVE_LIBZ -DCACKEY_DEBUG=1 -o test cackey-chrome-pkcs11.c cackey-chrome-test.c ../../cackey.c -L/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -lz -L/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -lpcsclite -L/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -lc -lpthread -Wl,-R,/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib -Wl,-R,/opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib -Wl,-R,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib -Wl,-dynamic-linker,/opt/appfs/core.appfs.rkeene.org/glibc/platform/latest/lib/ld-linux-x86-64.so.2
 
 cackey-chrome-pkcs11.o: cackey-chrome-pkcs11.c cackey-chrome.h
-cackey-chrome-plugin.o: cackey-chrome-plugin.cc cackey-chrome.h include/PCSC/pcsc-nacl.h
+cackey-chrome-plugin.o: cackey-chrome-plugin.cc cackey-chrome.h include/libpcsc.h
 
 clean:
 	rm -f cackey-chrome-pkcs11.o cackey-chrome-plugin.o
@@ -110,7 +108,7 @@ clean:
 distclean: clean
 	rm -f lib/libcackey.a lib/libpcsc.a lib/libz.a
 	-rmdir lib
-	rm -f include/PCSC/pcsc-nacl.h
+	rm -f include/libpcsc.h
 	-rmdir include/PCSC
 	-rmdir include
 	rm -f google-pcsc.js

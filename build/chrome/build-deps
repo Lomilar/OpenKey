@@ -75,7 +75,7 @@ function download() {
 
 	chkHash="$(openssl "${hashMethod}" "${file}.new" | sed 's@.*= *@@')"
 
-	if [ "${chkHash}" != "${hash}" ]; then
+	if [ "${chkHash}" != "${hash}" -a "${hash}" != '-' ]; then
 		echo "error: Checksum mismatch: Got: ${chkHash}; Expected: ${hash}" >&2
 
 		return 1
@@ -170,17 +170,17 @@ function buildZlib() {
 	return 0
 }
 
-# Build "boost"
-function buildBoost() {
+# Build the libpcsc we need
+function buildPCSC() {
 	local version url pkg sha256 configure_extra
 	local archive workdir
 
-	pkg='boost'
-	version='1.57.0'
-	url="http://downloads.sourceforge.net/project/boost/boost/${version}/boost_`echo ${version} | sed 's_\._\__g'`.tar.bz2"
-	sha256='910c8c022a33ccec7f088bd65d4f14b466588dda94ba2124e78b8c57db264967'
+	pkg='nacl-libpcsc'
+	version='179983e00b5ed8a8fead5d2f9bb35f5304716041'
+	url="https://chiselapp.com/user/rkeene/repository/nacl-libpcsc/tarball/nacl-libpcsc-${version}.tar.gz?uuid=${version}"
+	sha256='-'
 
-	archive="archive/${pkg}-${version}.tar.bz2"
+	archive="archive/${pkg}-${version}.tar.gz"
 	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
 
 	download "${url}" "${archive}" "${sha256}" || return 1
@@ -189,170 +189,12 @@ function buildBoost() {
 	(
 		cd "${workdir}" || exit 1
 
-		./bootstrap.sh --prefix="${instdir}" --with-python=false --show-libraries
-
-		./bootstrap.sh --prefix="${instdir}" --with-python=false --without-libraries='atomic,chrono,container,context,coroutine,date_time,exception,filesystem,graph,graph_parallel,iostreams,locale,log,math,mpi,program_options,python,random,regex,serialization,signals,system,test,thread,timer,wave' || exit 1
-
-		echo "using gcc : pnacl : ${CXX} ;" >> project-config.jam
-
-		./b2 --debug-configuration toolset=gcc-pnacl target-os=linux link=static runtime-link=static || exit 1
-
-		./bjam install | grep -v '^common.copy '
-
-		exit 0
+		if [ ! -d pcsc/src ]; then
+			./build/assemble-source-from-google.sh || exit 1
+		fi
 	) || return 1
 
-	rm -rf "${workdir}"
-
-	return 0
-}
-
-# Build the libpcsc we need
-function buildPCSC() {
-	local version url pkg sha256 configure_extra
-	local archive workdir
-
-	buildBoost || return 1
-
-	pkg='smart-card-client-c-example-app-sources'
-	version='0.0.0'
-	sha256='68970c6dc4b55d24a453bcfe5768af2b877f553a92a390be7f935db6223d4bc5'
-
-	archive="archive/${pkg}.zip"
-	workdir="workdir-${RANDOM}${RANDOM}${RANDOM}${RANDOM}.build"
-
-	extract "${archive}" "${workdir}" || return 1
-
-	(
-		cd "${workdir}" || exit 1
-
-		# Copy out PC/SC headers for later use
-		mkdir -p "${instdir}/include/PCSC" || exit 1
-		cp third_party/pcsc-lite/src/src/PCSC/*.h "${instdir}/include/PCSC" || exit 1
-
-		# Copy out extra headers
-		cat << \_EOF_ > "${instdir}/include/PCSC/pcsc-nacl.h"
-#ifndef PCSC_NACL_H
-#define PCSC_NACL_H 1
-#ifdef __cplusplus
-#include <ppapi/cpp/core.h>
-#include <ppapi/cpp/instance.h>
-
-void pcscNaClInit(pp::Instance *instance, pp::Core *core, const char *smartcardManagerAppId, const char *clientId);
-bool pcscNaClHandleMessage(const pp::Var &message);
-
-#endif
-#endif
-_EOF_
-
-		# Copy out JavaScript files for later use
-		mkdir "${instdir}/js" || exit 1
-		cp common-utils/*.js "${instdir}/js" || exit 1
-		cp third_party/pcsc-lite/client-side/*.js "${instdir}/js" || exit 1
-
-		# Build libpcsc
-		## Assemble all the files into a single tree
-		for file in logging.h scard_structs_serialization.h dom_requests_manager.h thread_safe_string_pool.h \
-		    pp_var_utils.cc pp_var_utils.h scard_structs_serialization.cc dom_requests_manager.cc logging.cc; do
-			find . -type f -name "${file}" -exec cp '{}' third_party/pcsc-lite/client-side/ ';'
-		done
-
-		## Create Makefile
-		cat << \_EOF_ > third_party/pcsc-lite/client-side/Makefile || exit 1
-CFLAGS   += -Wall -std=gnu++11 -g3 -ggdb3
-CXXFLAGS += -Wall -std=gnu++11 -g3 -ggdb3
-CPPFLAGS += -I../src/src/PCSC
-
-OBJS = pcsc_nacl.o pcsc_nacl_global.o scard_structs_serialization.o pp_var_utils.o logging.o dom_requests_manager.o pcsc_nacl_init.o
-
-all: libpcsc.a
-
-libpcsc.a: $(OBJS)
-	rm -f libpcsc.a
-	$(AR) rc libpcsc.a $(OBJS)
-	-$(RANLIB) libpcsc.a
-
-pcsc_nacl_init.o: pcsc_nacl_init.cc pcsc_nacl_global.h dom_requests_manager.h pcsc_nacl.h
-
-pcsc_nacl.o: pcsc_nacl.cc pcsc_nacl.h logging.h pp_var_utils.h scard_structs_serialization.h
-pcsc_nacl.h: dom_requests_manager.h thread_safe_string_pool.h
-
-pcsc_nacl_global.o: pcsc_nacl_global.cc pcsc_nacl_global.h logging.h
-pcsc_nacl_global.h: pcsc_nacl.h
-
-pp_var_utils.o: pp_var_utils.cc pp_var_utils.h logging.h
-pp_var_utils.h: logging.h
-
-scard_structs_serialization.o: scard_structs_serialization.cc scard_structs_serialization.h pp_var_utils.h
-scard_structs_serialization.h: pp_var_utils.h
-
-dom_requests_manager.o: dom_requests_manager.cc dom_requests_manager.h logging.h pp_var_utils.h
-
-logging.o: logging.cc logging.h
-
-clean:
-	rm -f $(OBJS)
-	rm -f libpcsc.a
-
-distclean: clean
-
-.PHONY: all clean distclean
-_EOF_
-
-		## Create initialization procedure, since it lacks one
-		cat << \_EOF_ > third_party/pcsc-lite/client-side/pcsc_nacl_init.cc
-#include <ppapi/cpp/core.h>
-#include <ppapi/cpp/instance.h>
-
-#include <unistd.h>
-
-#include "pcsc_nacl_global.h"
-#include "dom_requests_manager.h"
-#include "pcsc_nacl.h"
-
-static DomRequestsManager *pcscNaClDRM = NULL;
-
-void pcscNaClInit(pp::Instance *instance, pp::Core *core, const char *smartcardManagerAppId, const char *clientId) {
-	DomRequestsManager::PpDelegateImpl *drmDelegateImpl;
-	PcscNacl *pcsc_nacl;
-
-	if (smartcardManagerAppId == NULL) {
-		smartcardManagerAppId = "khpfeaanjngmcnplbdlpegiifgpfgdco";
-	}
-
-	if (clientId == NULL) {
-		clientId = "UNKNOWN";
-	}
-
-	if (pcscNaClDRM == NULL) {
-		drmDelegateImpl = new DomRequestsManager::PpDelegateImpl(instance, core);
-	
-		pcscNaClDRM = new DomRequestsManager("pcsc-nacl", drmDelegateImpl);
-	}
-
-	pcsc_nacl = new PcscNacl(pcscNaClDRM, smartcardManagerAppId, clientId);
-
-	if (!pcsc_nacl->Initialize()) {
-		return;
-	}
-
-	SetPcscNaclGlobalInstance(pcsc_nacl);
-
-	return;
-}
-
-bool pcscNaClHandleMessage(const pp::Var &message) {
-	return(pcscNaClDRM->HandleMessage(message));
-}
-_EOF_
-
-		## Make it
-		make -C third_party/pcsc-lite/client-side || exit 1
-
-		# Install the built libpcsc
-		mkdir -p "${instdir}/lib" || exit 1
-		cp third_party/pcsc-lite/client-side/libpcsc.a "${instdir}/lib" || exit 1
-	) || return 1
+	make -C "${workdir}" prefix="${instdir}" install || return 1
 
 	rm -rf "${workdir}"
 

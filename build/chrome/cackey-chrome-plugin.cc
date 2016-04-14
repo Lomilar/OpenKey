@@ -17,7 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "pcsc-nacl.h"
+#include "libpcsc.h"
 #include "cackey-chrome.h"
 
 class CACKeyInstance : public pp::Instance {

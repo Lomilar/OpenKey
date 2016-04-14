@@ -190,6 +190,9 @@ function cackeyMessageIncoming(messageEvent) {
 	var nextFunction = null;
 	var chromeCallback = null;
 
+		console.log("START MESSAGE");
+		console.log(messageEvent.data);
+		console.log("END MESSAGE");
 	if (messageEvent.data.target != "cackey") {
 		return;
 	}
@@ -723,7 +726,8 @@ function cackeyInitPCSC(callbackAfterInit, callbackInitFailed) {
 	/*
 	 * Initialize the PCSC NaCl interface
 	 */
-	cackeyPCSCHandle = new GoogleSmartCard.PcscNacl(cackeyHandle);
+	new GoogleSmartCard.NaclModule(cackeyHandle);
+	cackeyPCSCHandle = new GoogleSmartCard.PcscLiteClient.NaclClientBackend(cackeyHandle.messageChannel, "CACKey", "khpfeaanjngmcnplbdlpegiifgpfgdco"); 
 
 	console.log("[cackey] cackeyInitPCSC() complete");
 
@@ -816,7 +820,8 @@ function cackeyAppInit() {
 			"innerBounds": {
 				"width": 350,
 				"minWidth": 350,
-				"height": 135,
+				"height": 136,
+
 				"minHeight": 135
 			}
 		}, function(uiWindow) {
@@ -828,30 +833,33 @@ function cackeyAppInit() {
 		});
 	});
 
-	/*
-	 * Register a handler for dealing with the PCSC port being disconnected
-	 */
-	oldOnPortDisconnectedFunction = GoogleSmartCard.Pcsc.prototype.onPortDisconnected_;
-	GoogleSmartCard.Pcsc.prototype.onPortDisconnected_ = function() {
-		oldOnPortDisconnectedFunction.apply(this);
-
-		cackeyInitPCSCCompleted("failure");
-
-		cackeyRestart();
-
-		return;
-	};
-
-	/*
-	 * Register a handler for dealing with the PCSC port being available
-	 */
-	oldPCSCInitializationCallback = GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_;
-	GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_ = function(requestId, instanceId, instance, error) {
-		oldPCSCInitializationCallback.apply(this, [requestId, instanceId, instance, error]);
-
-		return;
-	};
-
+// Google got rid of all of the code we were using to interface with PCSC... 
+// This needs to be rewritten to use the new interface
+//
+//	/*
+//	 * Register a handler for dealing with the PCSC port being disconnected
+//	 */
+//	oldOnPortDisconnectedFunction = GoogleSmartCard.Pcsc.prototype.onPortDisconnected_;
+//	GoogleSmartCard.Pcsc.prototype.onPortDisconnected_ = function() {
+//		oldOnPortDisconnectedFunction.apply(this);
+//
+//		cackeyInitPCSCCompleted("failure");
+//
+//		cackeyRestart();
+//
+//		return;
+//	};
+//
+//	/*
+//	 * Register a handler for dealing with the PCSC port being available
+//	 */
+//	oldPCSCInitializationCallback = GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_;
+//	GoogleSmartCard.PcscNacl.prototype.pcscInitializationCallback_ = function(requestId, instanceId, instance, error) {
+//		oldPCSCInitializationCallback.apply(this, [requestId, instanceId, instance, error]);
+//
+//		return;
+//	};
+//
 	/*
 	 * Initialize global state
 	 */
