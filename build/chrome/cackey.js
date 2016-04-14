@@ -190,9 +190,6 @@ function cackeyMessageIncoming(messageEvent) {
 	var nextFunction = null;
 	var chromeCallback = null;
 
-		console.log("START MESSAGE");
-		console.log(messageEvent.data);
-		console.log("END MESSAGE");
 	if (messageEvent.data.target != "cackey") {
 		return;
 	}

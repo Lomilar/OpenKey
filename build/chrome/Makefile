@@ -72,7 +72,7 @@ lib/libz.a: lib/libcackey.a
 
 google-pcsc.js: lib/libcackey.a
 	rm -f google-pcsc.js google-pcsc.js.new
-	cat workdir-*.inst/js/libpcsc.js > google-pcsc.js.new
+	if [ "$(CACKEY_DEBUG)" = '1' ]; then CACKEY_DEBUG_BOOL='true'; else CACKEY_DEBUG_BOOL='false'; fi; sed 's@goog.define(.goog\.DEBUG., .*);@goog.define('"'"'goog.DEBUG'"'"', '"$${CACKEY_DEBUG_BOOL}"');@' workdir-*.inst/js/libpcsc.js > google-pcsc.js.new
 	mv google-pcsc.js.new google-pcsc.js
 
 include/libpcsc.h: lib/libcackey.a

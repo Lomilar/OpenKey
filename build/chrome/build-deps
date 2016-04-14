@@ -176,7 +176,7 @@ function buildPCSC() {
 	local archive workdir
 
 	pkg='nacl-libpcsc'
-	version='a72d1992e9e7d70c885d3b34f9b75317fa8671ef'
+	version='889f3554e9582467ca4e724276a4c1be69cba189'
 	url="https://chiselapp.com/user/rkeene/repository/nacl-libpcsc/tarball/nacl-libpcsc-${version}.tar.gz?uuid=${version}"
 	sha256='-'
 
