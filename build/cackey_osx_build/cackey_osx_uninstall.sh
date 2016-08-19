@@ -19,3 +19,9 @@ echo "Removing saved Mac OS X package information for CACKey..."
 for package in `pkgutil --pkgs | grep -i CACKey`; do
 	pkgutil --forget ${package}
 done
+
+# If on Sierra or newer, reenable the pivtoken CryptoTokenKit
+echo "Reenabling the builtin pivtoken CryptoTokenKit..."
+if [ "`uname -r | cut -d '.' -f 1`" -ge "16" ]; then
+	security smartcards token -e com.apple.CryptoTokenKit.pivtoken
+fi
