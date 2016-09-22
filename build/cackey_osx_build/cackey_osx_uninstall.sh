@@ -24,4 +24,5 @@ done
 echo "Reenabling the builtin pivtoken CryptoTokenKit..."
 if [ "`uname -r | cut -d '.' -f 1`" -ge "16" ]; then
 	security smartcards token -e com.apple.CryptoTokenKit.pivtoken
+	defaults delete /Library/Preferences/com.apple.security.smartcard DisabledTokens -array com.apple.CryptoTokenKit.pivtoken
 fi
