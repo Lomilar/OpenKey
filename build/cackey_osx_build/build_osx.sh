@@ -148,7 +148,7 @@ pkgbuild() {
 	else
 		TAR=tar
 	fi
-	TOKENDSHA256="800a1d307df4117b2096a824dfc7ccca1ebecb5caf5fa98c1e531ac6f6b672a0"
+	TOKENDSHA256="f4a27bcec02effc39f1bc9a6dc7943b8c1c3e570431782a874a1082bb1332ef3"
 	curl http://devel.kvanals.org/PKCS11_Tokend/PKCS11_tokend-latest.tar.gz > PKCS11_tokend-latest.tar.gz
 	if [ "${TOKENDSHA256}" != "`shasum -a 256 PKCS11_tokend-latest.tar.gz | awk '{print $1}'`" ]; then
 		echo "SHA-256 Checksum does NOT match for TokenD!  Verify there was a new upstream release and update the build script!"
