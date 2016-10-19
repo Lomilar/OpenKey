@@ -3,6 +3,7 @@ chmod -R go+rX /Library/Security/tokend/PKCS11.tokend
 chown -R root:wheel /Library/Security/tokend/PKCS11.tokend
 
 # Write Out Uninstaller (For our users' convenience)
+mkdir -p /usr/local/bin/
 cat << 'EOF' >> /usr/local/bin/cackey_osx_uninstall.sh
 #!/bin/bash
 # Script to remove current and previous releases of CACKey from Mac OS X
