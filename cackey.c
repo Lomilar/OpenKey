@@ -164,6 +164,7 @@
 
 /** Applet IDs **/
 #define GSCIS_AID_CCC                 0xA0, 0x00, 0x00, 0x01, 0x16, 0xDB, 0x00
+#define GSCIS_AID_ID0                 0xA0, 0x00, 0x00, 0x00, 0x79, 0x01, 0x00
 #define NISTSP800_73_3_PIV_AID        0xA0, 0x00, 0x00, 0x03, 0x08, 0x00, 0x00, 0x10, 0x00, 0x01, 0x00
 
 /* PIV IDs */
@@ -217,7 +218,7 @@ static unsigned long CACKEY_DEBUG_GETTIME(void) {
 	fflush(cackey_debug_fd()); \
 }
 #  define CACKEY_DEBUG_PRINTBUF(f, x, y) { \
-	static char buf_user[4096] = {0}, *buf_user_p, *buf_user_print; \
+	static char buf_user[8192] = {0}, *buf_user_p, *buf_user_print; \
 	unsigned long buf_user_size; \
 	unsigned char *TMPBUF; \
 	unsigned long idx; \
@@ -2162,7 +2163,9 @@ static cackey_ret cackey_select_applet(struct cackey_slot *slot, unsigned char *
  *
  */
 static cackey_pcsc_id_type cackey_detect_and_select_root_applet(struct cackey_slot *slot, cackey_pcsc_id_type type_hint) {
-	unsigned char ccc_aid[] = {GSCIS_AID_CCC}, piv_aid[] = {NISTSP800_73_3_PIV_AID};
+	unsigned char cac_ccc_aid[] = {GSCIS_AID_CCC};
+	unsigned char cac_id0_aid[] = {GSCIS_AID_ID0};
+	unsigned char piv_aid[] = {NISTSP800_73_3_PIV_AID};
 	cackey_pcsc_id_type try_types[2], try_type;
 	int send_ret;
 	int idx;
@@ -2199,7 +2202,10 @@ static cackey_pcsc_id_type cackey_detect_and_select_root_applet(struct cackey_sl
 			case CACKEY_ID_TYPE_CAC:
 				CACKEY_DEBUG_PRINTF("Trying to select the CAC CCC applet");
 
-				send_ret = cackey_select_applet(slot, ccc_aid, sizeof(ccc_aid));
+				send_ret = cackey_select_applet(slot, cac_ccc_aid, sizeof(cac_ccc_aid));
+				if (send_ret != CACKEY_PCSC_S_OK) {
+					send_ret = cackey_select_applet(slot, cac_id0_aid, sizeof(cac_id0_aid));
+				}
 
 				break;
 			case CACKEY_ID_TYPE_PIV:
