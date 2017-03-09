@@ -19,6 +19,7 @@ esac
 
 gcc_default_headers_c="$(echo '' | ${CPP:-cpp} -v 2>&1 | sed '/^End of search list/,$ d;0,/search starts here:$/ d' | grep '/gcc/' | sed 's@^ *@-isystem @' | tr $'\n' ' ')"
 glibcdir="$(readlink -f /opt/appfs/core.appfs.rkeene.org/glibc/platform/latest)"
+zlibdir="$(readlink -f /opt/appfs/core.appfs.rkeene.org/zlib/platform/latest)"
 
 ./configure \
 	--with-pin-command-x='/opt/appfs/rkeene.org/cackey/platform/latest/bin/cackey-ask-pin' \
@@ -26,6 +27,6 @@ glibcdir="$(readlink -f /opt/appfs/core.appfs.rkeene.org/glibc/platform/latest)"
 	--with-pcsc-libs="-L$(readlink -f /opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib) -Wl,-rpath,$(readlink -f /opt/appfs/rkeene.org/pcsc-lite/platform/latest/lib) -lpcsclite" \
 	CC="${CC:-gcc} -nostdinc ${gcc_default_headers_c} -isystem ${glibcdir}/include -isystem /opt/appfs/core.appfs.rkeene.org/linux-headers/platform/2.6.32.63/include" \
 	CPPFLAGS="-I/opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/include" \
-	LDFLAGS="-L${glibcdir}/lib -L$(readlink -f /opt/appfs/core.appfs.rkeene.org/zlib/platform/latest/lib) -pthread -Wl,--dynamic-linker,${glibcdir}/lib/ld-linux-${ARCH}.so.2"
+	LDFLAGS="-L${glibcdir}/lib -Wl,-R,${glibcdir}/lib -L${zlibdir}/lib -Wl,-R,${zlibdir}/lib -pthread -Wl,--dynamic-linker,${glibcdir}/lib/ld-linux-${ARCH}.so.2"
 
 make
