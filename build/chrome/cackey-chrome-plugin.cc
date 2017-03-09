@@ -150,6 +150,7 @@ class CACKeyInstance : public pp::Instance {
 						case CACKEY_CHROME_ERROR:
 							reply->Set("status", "error");
 							reply->Set("error", "Unable to sign data");
+							reply->Set("originalrequest", *messagePlain);
 							break;
 						case CACKEY_CHROME_NEEDLOGIN:
 						case CACKEY_CHROME_NEEDPROTECTEDLOGIN:
