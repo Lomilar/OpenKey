@@ -5,94 +5,32 @@
 			body {
 				margin: 0px;
 			}
-
-			.pin-dialog {
-				font-family: Roboto;
-				width: 240px;
-				background: white;
-				margin: 20px;
-			}
-
-			.pin-body, .pin-heading {
-				padding: 0px 16px;
-			}
-
-			.pin-heading h1 {
-				font-size: 15px;
-				font-weight: 500;
-				padding-top: 18px;
-				color: rgba(0, 0, 0, 0.87);
-			}
-
-			.pin-body {
-				font-size: 13px;
-				color: rgba(0, 0, 0, 0.54);
-				line-height: 1.4;
-				padding-top: 20px;
-			}
-
-			.pin-body input {
-				width: 100%;
-				padding: 5px;
-				border-radius: 3px;
-				border: 1px solid #cacaca;
-				box-sizing: border-box;
-			}
-
-			.pin-buttons {
-				text-align: right;
-			}
-
-			.pin-buttons button {
-				margin: 12px 0px;
-				height: 32px;
-				padding: 0px 16px;
-				background: none;
-				border: none;
-				cursor: pointer;
-				font-size: 13px;
-				text-transform: uppercase;
-				color: #4285f4;
-				font-weight: 500;
-			}
-
-			.pin-buttons button:hover, .pin-buttons button:focus {
-				background-color: rgba(0, 0, 0, 0.08);
-			}
-
-			.pin-buttons button:active {
-				background-color: rgba(0, 0, 0, 0.14);
-			}
-
-			.pin-buttons #ok {
-				margin-left: 16px;
-				margin-right: 8px;
-			}
-
-			.pin-buttons #cancel {
-				margin-right: 16px;
-			}
 		</style>
 		<script type="text/javascript" src="pin.js"></script>
 	</head>
-	<div class="pin-dialog">
-		<div class="pin-heading">
-			<h1 id="header">CACKey</h1>
-		</div>
-
-		<div class="pin-body">
-			<form>
-				<div>
-					<label id="input-label" for="input"><div id="prompt">Enter Smart Card PIN</div></label>
-				</div>
-				<div>
-					<input id="pin" type="password" autofocus/>
-				</div>
-				<div class="pin-buttons">
-					<button id="ok" type="submit">OK</button>
-					<button id="cancel" type="button">Cancel</button>
-				</div>
-			</form>
-		</div>
-	</div>
+	<body bgcolor="#e4e4e4" color="#000000">
+		<form>
+			<table width="100%" border="0" cellspacing="5" cellpadding="0">
+				<tr width="100%" align="left" valign="bottom">
+					<td rowspan="4"><img src="pin-icon.png" alt=""></td>
+				</tr>
+				<tr width="100%" align="left" valign="bottom">
+					<td></td>
+					<td colspan="2"><div id="prompt" style="font-size: 0.8em;">PIN Entry Required</div></td>
+				</tr>
+				<tr width="100%" align="left" valign="center">
+					<td></td>
+					<td>PIN:</td>
+					<td><input type="password" name="pin" id="pin" style="width: 100%;" autofocus></td>
+				</tr>
+				<tr width="100%" align="right" valign="top">
+					<td></td>
+					<td colspan="2">
+						<input type="button" class="button" name="ok" id="ok" value="OK" style="min-width: 4em;">
+						<input type="button" class="button" name="cancel" id="cancel" value="Cancel" style="min-width: 4em;">
+					</td>
+				</tr>
+			</table>
+		</form>
+	</body>
 </html>
