@@ -604,6 +604,11 @@ cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *ce
 
 						tmpDestinationLength = *destinationLength;
 						chk_rv = moduleFunctionList->C_Sign(hSession, data, dataLength, destination, &tmpDestinationLength);
+
+						if (tmpDestinationLength == 0) {
+							chk_rv = CKR_GENERAL_ERROR;
+						}
+
 						switch (chk_rv) {
 							case CKR_OK:
 								*destinationLength = tmpDestinationLength;

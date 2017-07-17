@@ -118,7 +118,6 @@ class CACKeyInstance : public pp::Instance {
 
 					incomingCertificateCACKey.certificate = incomingCertificateContents->Map();					
 					incomingCertificateCACKey.certificate_len = incomingCertificateContents->ByteLength();					
-
 					outgoingDataLength = sizeof(buffer);
 
 					signRet = cackey_chrome_signMessage(&incomingCertificateCACKey,
