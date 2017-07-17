@@ -144,7 +144,7 @@ static int asn1_x509_read_object(unsigned char *buf, size_t buflen, struct x509_
 
 	read_ret = asn1_x509_read_asn1_object(buf, buflen, &outbuf->wholething, NULL);
 	if (read_ret != 0) {
-		CACKEY_DEBUG_PRINTF("Failed at reading the contents from the wrapper")
+		CACKEY_DEBUG_PRINTF("Failed at reading the contents from the wrapper");
 
 		return(-1);
 	}
