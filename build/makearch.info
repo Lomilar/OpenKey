@@ -3,7 +3,7 @@ UTIL="cackey"
 
 # This is the name of output files that should exist after configure 
 # procedures.
-BINS="libcackey.so"
+BINS=""
 
 # This lists the name of files that are required to exist
 REQS=""

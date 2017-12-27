@@ -1,9 +1,5 @@
 #! /bin/sh
 
-find . -type f -name '.*.sw?' | xargs rm -f
-find . -type f -name '.nfs*' | xargs rm -f
-find . -type f -name '*~' | xargs rm -f
-
 if [ "${SNAPSHOT}" = "1" ]; then
 	sed "s@\(AC_INIT([^)]*\))@\1.${VERS})@" configure.ac > configure.ac.new
 	cat configure.ac.new > configure.ac
