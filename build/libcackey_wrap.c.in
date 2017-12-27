@@ -1,0 +1,75 @@
+#define _GNU_SOURCE
+#include <dlfcn.h>
+
+#include "config.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+#define CK_PTR *
+#define CK_DEFINE_FUNCTION(returnType, name) returnType name
+#define CK_DECLARE_FUNCTION(returnType, name) returnType name
+#define CK_DECLARE_FUNCTION_POINTER(returnType, name) returnType (* name)
+#define CK_CALLBACK_FUNCTION(returnType, name) returnType (* name)
+#ifndef NULL_PTR
+#  define NULL_PTR 0
+#endif
+
+#include "./pkcs11/pkcs11.h"
+
+static void *libcackey_wrap_handle = NULL_PTR;
+
+static void libcackey_wrap_init(void) {
+	Dl_info libinfo;
+	int dladdr_ret;
+	char *library, *libraryDir, *libraryDirLastSlash;
+
+	if (libcackey_wrap_handle) {
+		return;
+	}
+
+	dladdr_ret = dladdr(libcackey_wrap_init, &libinfo);
+	if (dladdr_ret == 0) {
+		fprintf(stderr, "Unable to resolve path: %s\n", dlerror());
+
+		abort();
+
+		return;
+	}
+
+	if (!libinfo.dli_fname) {
+		fprintf(stderr, "Unable to lookup filename\n");
+
+		abort();
+
+		return;
+	}
+
+	libraryDir = strdup(libinfo.dli_fname);
+	libraryDirLastSlash = strrchr(libraryDir, '/');
+	if (!libraryDirLastSlash) {
+		fprintf(stderr, "File name returned is not an absolute path: %s\n", libraryDir);
+
+		abort();
+
+		return;
+	}
+	*libraryDirLastSlash = '\0';
+
+	asprintf(&library, "%s/libcackey.so", libraryDir);
+
+	libcackey_wrap_handle = dlmopen(LM_ID_NEWLM, library, RTLD_LOCAL | RTLD_NOW);
+
+	if (!libcackey_wrap_handle) {
+		fprintf(stderr, "Unable to load \"%s\": %s\n", library, dlerror());
+
+		abort();
+
+		return;
+	}
+
+	free(library);
+
+	return;
+}

@@ -2,6 +2,9 @@
 
 rm -f aclocal.m4
 
+rm -f libcackey_wrap.c
+./build/make-libcackey_wrap > libcackey_wrap.c
+
 ${MAKE:-make} -C aclocal
 autoconf; autoheader
 

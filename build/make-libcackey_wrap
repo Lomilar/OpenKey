@@ -1,0 +1,31 @@
+#! /usr/bin/env bash
+
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+
+cat libcackey_wrap.c.in
+
+grep '^CK_DEFINE_FUNCTION' ../cackey.c | while IFS='' read -r line; do
+	function="$(echo "${line}" | cut -f 2 -d , | cut -f 1 -d ')' | sed 's@ *@@g')"
+	args="$(echo "${line}" | cut -f 3 -d '(' | cut -f 1 -d ')' | tr ',' $'\n' | sed 's@^ *@@')"
+	argNames=()
+	while read argType argName; do
+		argNames=("${argNames[@]}" "${argName}")
+	done <<<"${args}"
+
+	argNamesList=''
+	for argName in "${argNames[@]}"; do
+		argNamesList="${argNamesList}, ${argName}"
+	done
+	argNamesList="$(echo "${argNamesList}" | cut -c 3-)"
+
+	echo ''
+	echo "${line}"
+	echo $'\t'"CK_RV (*func)($(echo "${args}" | tr $'\n' ',' | sed 's@,*$@@;s@,@, @g'));"
+	echo ''
+	echo $'\t''libcackey_wrap_init();'
+	echo ''
+	echo $'\t'"func = dlsym(libcackey_wrap_handle, \"${function}\");"
+	echo ''
+	echo $'\t'"return(func($argNamesList));"
+	echo '}'
+done
