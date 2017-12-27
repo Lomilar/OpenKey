@@ -17,6 +17,9 @@ libcackey.dll
 libcackey_g.a
 libcackey.a
 libcackey.syms
+libcackey_wrap.so
+libcackey_wrap.o
+libcackey_wrap.c
 build/certs
 test
 test-afl
