@@ -4704,6 +4704,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 		cackey_pin_command = strdup(getenv("CACKEY_PIN_COMMAND_XONLY"));
 	}
 
+	if (strcmp(cackey_pin_command, "") == 0) {
+		free(cackey_pin_command);
+		cackey_pin_command = NULL;
+	}
+
 #ifdef CACKEY_READERS_INCLUDE_ONLY_DEFAULT
 	cackey_readers_include_only = strdup(CACKEY_MACRO_DEFAULT_XSTR(CACKEY_READERS_INCLUDE_ONLY_DEFAULT));
 #endif
