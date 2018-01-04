@@ -190,7 +190,7 @@ function cackeyMessageIncoming(messageEvent) {
 	var nextFunction = null;
 	var chromeCallback = null;
 
-	if (messageEvent.data.target != "cackey") {
+	if (messageEvent.data.target != "openkey") {
 		return;
 	}
 
@@ -416,7 +416,7 @@ function cackeyListCertificates(chromeCallback) {
 	cackeyInitPCSC(function() {
 		cackeyHandle.postMessage(
 			{
-				'target': "cackey",
+				'target': "openkey",
 				'command': "listcertificates",
 				'id': callbackId
 			}
@@ -447,7 +447,7 @@ function cackeyListReaders(chromeCallback) {
 	cackeyInitPCSC(function() {
 		cackeyHandle.postMessage(
 			{
-				'target': "cackey",
+				'target': "openkey",
 				'command': "listreaders",
 				'id': callbackId
 			}
@@ -506,7 +506,7 @@ function cackeySignMessage(signRequest, chromeCallback) {
 	callbackId = ++cackeyOutstandingCallbackCounter;
 
 	command = {
-		'target': "cackey",
+		'target': "openkey",
 		'command': "sign",
 		'id': callbackId,
 		'certificate': signRequest.certificate,
@@ -714,7 +714,7 @@ function cackeyInitPCSC(callbackAfterInit, callbackInitFailed) {
 	 */
 	cackeyHandle.postMessage(
 		{
-			"target": "cackey",
+			"target": "openkey",
 			"command": "init"
 		}
 	);

@@ -1,10 +1,10 @@
 {
 	"manifest_version": 2,
-	"name": "CACKey",
-	"short_name": "CACKey",
+	"name": "OpenKey",
+	"short_name": "OpenKey",
 	"version": "@PACKAGE_VERSION@.9",
 
-	"description": "US Department of Defense Common Access Card (CAC) and US NIST SP 800-73 Personal Identity Verification (PIV) card support.",
+	"description": "Based on the very excellent CACKey: Smart card support for RSA encrypt/decrypt/sign/verify, US Department of Defense Common Access Card (CAC) and US NIST SP 800-73 Personal Identity Verification (PIV) card support.",
 
 	"icons": {
 		"128": "icon.png"
@@ -14,7 +14,8 @@
 		"background": {
 			"scripts": [
 				"google-pcsc.js",
-				"cackey.js"
+				"cackey.js",
+				"openkey.js"
 			],
 			"persistent": false
 		}

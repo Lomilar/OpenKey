@@ -32,6 +32,7 @@ class CACKeyInstance : public pp::Instance {
 
 		virtual void HandleMessageThread(pp::VarDictionary *message, pp::Var *messagePlain) {
 			cackey_chrome_returnType signRet;
+			cackey_chrome_returnType decryptRet;
 			char *pinPrompt = NULL;
 			const char *pin;
 			unsigned char buffer[8192];
@@ -116,8 +117,8 @@ class CACKeyInstance : public pp::Instance {
 						pin = NULL;
 					}
 
-					incomingCertificateCACKey.certificate = incomingCertificateContents->Map();					
-					incomingCertificateCACKey.certificate_len = incomingCertificateContents->ByteLength();					
+					incomingCertificateCACKey.certificate = incomingCertificateContents->Map();
+					incomingCertificateCACKey.certificate_len = incomingCertificateContents->ByteLength();
 					outgoingDataLength = sizeof(buffer);
 
 					signRet = cackey_chrome_signMessage(&incomingCertificateCACKey,
@@ -164,6 +165,72 @@ class CACKeyInstance : public pp::Instance {
 						free(pinPrompt);
 					}
 				}
+			}
+			else if (command.AsString() == "decrypt") {
+				if (!message->HasKey("certificate")) {
+					reply->Set("status", "error");
+					reply->Set("error", "Certificate not supplied");
+				} else if (!message->HasKey("data")) {
+					reply->Set("status", "error");
+					reply->Set("error", "Data not supplied");
+				} else {
+					incomingCertificateContents = new pp::VarArrayBuffer(message->Get("certificate"));
+					incomingData = new pp::VarArrayBuffer(message->Get("data"));
+
+					if (message->HasKey("pin")) {
+						pin = message->Get("pin").AsString().c_str();
+					} else {
+						pin = NULL;
+					}
+
+					incomingCertificateCACKey.certificate = incomingCertificateContents->Map();
+					incomingCertificateCACKey.certificate_len = incomingCertificateContents->ByteLength();
+					outgoingDataLength = sizeof(buffer);
+
+					decryptRet = cackey_chrome_decryptMessage(&incomingCertificateCACKey,
+						incomingData->Map(), incomingData->ByteLength(),
+						buffer, &outgoingDataLength,
+						&pinPrompt, pin
+					);
+
+					incomingCertificateContents->Unmap();
+					incomingData->Unmap();
+
+					delete incomingCertificateContents;
+					delete incomingData;
+
+					switch (decryptRet) {
+						case CACKEY_CHROME_OK:
+							outgoingData = new pp::VarArrayBuffer(outgoingDataLength);
+
+							memcpy(outgoingData->Map(), buffer, outgoingDataLength);
+
+							outgoingData->Unmap();
+
+							reply->Set("status", "success");
+							reply->Set("signedData", *outgoingData);
+
+							delete outgoingData;
+
+							break;
+						case CACKEY_CHROME_ERROR:
+							reply->Set("status", "error");
+							reply->Set("error", "Unable to sign data");
+							reply->Set("originalrequest", *messagePlain);
+							break;
+						case CACKEY_CHROME_NEEDLOGIN:
+						case CACKEY_CHROME_NEEDPROTECTEDLOGIN:
+							reply->Set("status", "retry");
+							reply->Set("originalrequest", *messagePlain);
+							reply->Set("pinprompt", pinPrompt);
+
+							break;
+					}
+
+					if (pinPrompt != NULL) {
+						free(pinPrompt);
+					}
+				}
 			} else {
 				reply->Set("status", "error");
 				reply->Set("error", "Invalid command");
@@ -179,7 +246,7 @@ class CACKeyInstance : public pp::Instance {
 			/*
 			 * Indicate who our message is for
 			 */
-			reply->Set("target", "cackey");
+			reply->Set("target", "openkey");
 			reply->Set("command", command);
 
 			/*
@@ -228,7 +295,7 @@ class CACKeyInstance : public pp::Instance {
 			}
 
 			target = message->Get("target");
-			if (target.AsString() != "cackey") {
+			if (target.AsString() != "openkey") {
 				delete message;
 
 				/* We don't handle this message, see if PCSC-NaCl does */
