@@ -32,6 +32,8 @@ void cackey_chrome_freeReaders(struct cackey_reader *readers, int readersCount);
 
 cackey_chrome_returnType cackey_chrome_signMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, void *destination, unsigned long *destinationLength, char **pinPrompt, const char *pin);
 
+cackey_chrome_returnType cackey_chrome_decryptMessage(struct cackey_certificate *certificate, void *data, unsigned long dataLength, void *destination, unsigned long *destinationLength, char **pinPrompt, const char *pin);
+
 void cackey_chrome_terminate(void);
 
 #  ifdef __cplusplus
